@@ -246,6 +246,11 @@
    */
   function csvEscape(field) {
     var str = String(field);
+    // Neutralize spreadsheet formula injection: a leading =, +, -, @, tab, or CR
+    // makes Excel/Sheets treat the cell as a formula, so prefix it with a quote.
+    if (/^[=+\-@\t\r]/.test(str)) {
+      str = "'" + str;
+    }
     if (str.indexOf(",") !== -1 || str.indexOf('"') !== -1 || str.indexOf("\n") !== -1) {
       return '"' + str.replace(/"/g, '""') + '"';
     }
