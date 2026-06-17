@@ -1,0 +1,5 @@
+# Exclude bundled third-party libraries from GitHub's language stats so the
+# breakdown reflects authored code (Bootstrap CSS and jsPDF here are vendored).
+lib/** linguist-vendored
+*.min.js linguist-vendored
+*.min.css linguist-vendored
