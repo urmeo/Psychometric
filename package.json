@@ -1,4 +1,5 @@
 {
+  "name": "psychometric",
   "private": true,
   "scripts": {
     "test": "node scripts/run-tests.js"
