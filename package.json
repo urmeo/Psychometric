@@ -4,6 +4,6 @@
     "test": "node scripts/run-tests.js"
   },
   "devDependencies": {
-    "puppeteer": "^24.0.0"
+    "puppeteer": "^25.2.0"
   }
 }
