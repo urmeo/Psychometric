@@ -39,6 +39,7 @@ window.CONFIG = {
     colScore: "Score",
     colInterpretation: "Interpr\u00e9tation",
     totalLabel: "Total",
+    resultsTableCaption: "R\u00e9sum\u00e9 des scores et des interpr\u00e9tations cliniques",
     csvSessionTitle: "--- Informations de session ---",
     csvParticipant: "Identifiant du participant",
     csvDate: "Date",

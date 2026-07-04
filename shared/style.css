@@ -26,6 +26,16 @@ p {
   background-color: var(--color-primary);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar { transition: none; }
+}
+
+.question:focus-visible,
+#results-area h2:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
 .question {
   margin-bottom: 20px;
   font-size: 1.2rem;
