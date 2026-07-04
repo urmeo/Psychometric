@@ -145,7 +145,8 @@
 
     // BFI
     assert(getInterp("BFI", "Openness", 1.5) !== "", "BFI interp: 1.5 has label");
-    assert(getInterp("BFI", "Openness", 2) !== getInterp("BFI", "Openness", 2.5), "BFI interp: 2 vs 2.5 boundary");
+    assert(getInterp("BFI", "Openness", 2) !== getInterp("BFI", "Openness", 3), "BFI interp: 2 vs 3 boundary");
+    assert(T.interpClass(getInterp("BFI", "Openness", 5)) === "", "BFI: top of scale is not colored as clinical severity");
 
     // Out-of-range scores must fail CLOSED (no label), never report the top band.
     assert(getInterp("HADS", "Anxiety", -1) === "", "HADS interp: below-min -> no label");

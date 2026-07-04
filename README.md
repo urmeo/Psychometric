@@ -32,7 +32,7 @@ Each instrument uses one of three scoring modes, defined in `lang/*.js`:
 
 - **Total** (STAI-S, STAI-T) -- sum of all 20 items; reverse-worded items are pre-keyed in their option scores.
 - **Subscale** (HADS, FQ) -- items summed into named subscales (e.g. HADS Anxiety vs Depression).
-- **Trait average** (BFI-10) -- items summed per Big-Five trait, then divided by the trait's item count.
+- **Trait average** (BFI-10) -- items summed per Big-Five trait, then divided by the trait's item count. Reported relative to the 1--5 scale midpoint (not clinically normed); no severity colour is applied.
 
 Computed scores are mapped to clinical bands (e.g. HADS Normal / Borderline / Abnormal) through per-subscale thresholds and colour-coded in the results table. Item mapping, reverse-scoring direction, and band boundaries are all unit-tested.
 
