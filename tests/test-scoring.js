@@ -339,6 +339,25 @@
     assert(ic("Low anxiety") === "interp-normal", "interpClass: Low -> normal");
     assert(ic("") === "", "interpClass: empty label -> no class");
 
+    // ── Full-battery integration (all five instruments at once) ──────
+    // Drives calculateSummaryScores + getInterpretation + interpClass across the
+    // whole battery in one pass, the way a completed session does.
+    state.tests = C.tests.slice();
+    var battery = [];
+    [["HADS", 2], ["STAI-S", 3], ["STAI-T", 2], ["BFI", 4], ["FQ", 4]].forEach(function (p) {
+      battery = battery.concat(mockAnswers(p[0], p[1]));
+    });
+    state.answers = battery;
+    var full = calcScores();
+    assert(full.HADS.Anxiety === 14 && full.HADS.Depression === 14, "battery: HADS subscales = 14 each");
+    assert(full["STAI-S"] === 60, "battery: STAI-S total = 60");
+    assert(full["STAI-T"] === 40, "battery: STAI-T total = 40");
+    assert(approxEqual(full.BFI.Openness, 4.0), "battery: BFI Openness mean = 4.0");
+    assert(full.FQ.Agoraphobia === 20 && full.FQ.TotalPhobia === 60, "battery: FQ Agoraphobia = 20, TotalPhobia = 60");
+    assert(T.interpClass(getInterp("HADS", "Anxiety", full.HADS.Anxiety)) === "interp-abnormal", "battery: HADS Anxiety 14 -> abnormal");
+    assert(T.interpClass(getInterp("STAI-S", "Total", full["STAI-S"])) === "interp-abnormal", "battery: STAI-S 60 -> high anxiety");
+    assert(T.interpClass(getInterp("BFI", "Openness", full.BFI.Openness)) === "", "battery: BFI trait carries no clinical color");
+
     // Render
     renderResults();
   }
