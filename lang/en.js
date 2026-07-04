@@ -10,6 +10,8 @@ window.CONFIG = {
     nextBtn: "Next",
     downloadCsvBtn: "Download CSV",
     downloadPdfBtn: "Download PDF",
+    clearDataBtn: "Clear saved data",
+    dataCleared: "Saved data cleared from this browser.",
     consent:
       "This assessment includes standardized psychometric instruments (HADS, STAI, BFI-10, Fear Questionnaire). " +
       "All responses are processed locally in your browser. No data is sent to or stored on any server unless you explicitly export it.",

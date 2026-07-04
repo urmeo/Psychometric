@@ -82,6 +82,8 @@ Every push and pull request runs `npm test` against both languages via GitHub Ac
 
 All scoring happens client-side in the browser. No response data is sent to or stored on any server unless the participant explicitly exports it.
 
+In-progress sessions (participant ID, answers, timestamps) are saved to the browser's `localStorage` so a test survives an accidental refresh. This data never leaves the device: it is cleared automatically when a session completes, can be removed at any time with the **Clear saved data** button, and is replaced when you choose **Start New** on the resume screen.
+
 ## References
 
 - Zigmond, A. S. & Snaith, R. P. (1983). The Hospital Anxiety and Depression Scale. *Acta Psychiatrica Scandinavica*, 67(6), 361--370.

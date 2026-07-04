@@ -851,6 +851,18 @@
       setTimeout(function () { downloadingPdf = false; }, 1000);
     });
 
+    // Clear saved data on demand (privacy control)
+    var clearBtn = $("#clearDataBtn");
+    if (clearBtn) {
+      clearBtn.textContent = ui.clearDataBtn;
+      clearBtn.addEventListener("click", function () {
+        clearProgress();
+        clearBtn.textContent = ui.dataCleared;
+        clearBtn.disabled = true;
+        setTimeout(function () { clearBtn.disabled = false; clearBtn.textContent = ui.clearDataBtn; }, 2000);
+      });
+    }
+
     // Warn on unload
     window.addEventListener("beforeunload", function (e) {
       if (state.testInProgress) {
