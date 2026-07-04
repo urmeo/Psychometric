@@ -320,6 +320,17 @@
     return str;
   }
 
+  /**
+   * Format a computed score for output: two decimals for a non-integer (e.g. a
+   * BFI trait mean), otherwise the value as-is. Shared by the table, CSV and PDF
+   * so the three renderings never disagree.
+   * @param {number|string} val
+   * @returns {string}
+   */
+  function formatScoreValue(val) {
+    return (typeof val === "number" && !Number.isInteger(val)) ? val.toFixed(2) : String(val);
+  }
+
   // ── UI Rendering ──────────────────────────────────────────────────
 
   /**
@@ -524,7 +535,7 @@
         Object.keys(score).forEach(function (sub) {
           var val = score[sub];
           var interp = getInterpretation(testName, sub, val);
-          var display = (typeof val === "number" && !Number.isInteger(val)) ? val.toFixed(2) : String(val);
+          var display = formatScoreValue(val);
           var row = el("tr");
           row.appendChild(el("td", { text: testName }));
           row.appendChild(el("td", { text: sub }));
@@ -586,7 +597,7 @@
         if (typeof score === "object") {
           Object.keys(score).forEach(function (sub) {
             var val = score[sub];
-            var display = (typeof val === "number" && !Number.isInteger(val)) ? val.toFixed(2) : String(val);
+            var display = formatScoreValue(val);
             var interp = getInterpretation(testName, sub, val);
             csv += [csvEscape(testName), csvEscape(sub), csvEscape(display), csvEscape(interp)].join(",") + "\n";
           });
@@ -674,13 +685,13 @@
             var val = score[sub];
             var interp = getInterpretation(testName, sub, val);
             var label = interp ? " (" + interp + ")" : "";
-            doc.text("  - " + sub + ": " + val + label, 14, yPos);
+            doc.text("  - " + sub + ": " + formatScoreValue(val) + label, 14, yPos);
             yPos += 6;
           });
         } else {
           var interp = getInterpretation(testName, null, score);
           var label = interp ? " (" + interp + ")" : "";
-          doc.text(testName + " " + ui.pdfScore + " " + score + label, 10, yPos);
+          doc.text(testName + " " + ui.pdfScore + " " + formatScoreValue(score) + label, 10, yPos);
           yPos += 6;
         }
       });
@@ -855,6 +866,7 @@
     window.__TEST__.getInterpretation = getInterpretation;
     window.__TEST__.interpClass = interpClass;
     window.__TEST__.csvEscape = csvEscape;
+    window.__TEST__.formatScoreValue = formatScoreValue;
     window.__TEST__.validateConfig = validateConfig;
     window.__TEST__.state = state;
   }

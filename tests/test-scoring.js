@@ -188,6 +188,12 @@
     assert(csvEscape('say "hi"') === '"say ""hi"""', "csvEscape: quotes doubled and wrapped");
     assert(csvEscape("line1\nline2") === '"line1\nline2"', "csvEscape: newline wrapped in quotes");
 
+    // ── Score formatting (shared by table, CSV, PDF) ────────────────
+    var fmt = T.formatScoreValue;
+    assert(fmt(3) === "3", "formatScoreValue: integer unchanged");
+    assert(fmt(4) === "4", "formatScoreValue: whole number gets no decimals");
+    assert(fmt(3.33333) === "3.33", "formatScoreValue: non-integer rounded to 2 decimals");
+
     // ── Per-item mapping tests ──────────────────────────────────────
     // Uniform answers (all-0, all-3…) can't detect a mis-mapped item, since
     // every subscale sums to the same value. These use DISTINCT per-item
