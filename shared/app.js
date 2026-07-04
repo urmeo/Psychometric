@@ -235,6 +235,68 @@
     return "";
   }
 
+  // ── Config integrity ─────────────────────────────────────────────
+
+  /**
+   * Validate a CONFIG object's structural integrity. Catches the data errors a
+   * config-driven scorer is most exposed to — an option/score length mismatch,
+   * a subscale/trait pointing at a non-existent item, or a malformed threshold
+   * range — before any scoring runs.
+   *
+   * @param {Object} cfg - A CONFIG object (window.CONFIG shape)
+   * @returns {string[]} Human-readable problems; empty array means valid
+   */
+  function validateConfig(cfg) {
+    var problems = [];
+    var testsByName = {};
+
+    (cfg.tests || []).forEach(function (t) {
+      testsByName[t.name] = t;
+      (t.questions || []).forEach(function (q, i) {
+        var where = t.name + " Q" + (i + 1);
+        if (!Array.isArray(q.options) || !Array.isArray(q.scores)) {
+          problems.push(where + ": missing options/scores array");
+        } else if (q.options.length !== q.scores.length) {
+          problems.push(where + ": " + q.options.length + " options but " + q.scores.length + " scores");
+        } else if (q.scores.some(function (s) { return typeof s !== "number" || isNaN(s); })) {
+          problems.push(where + ": non-numeric score");
+        }
+      });
+    });
+
+    Object.keys(cfg.scoring || {}).forEach(function (name) {
+      var t = testsByName[name];
+      if (!t) { problems.push("scoring[" + name + "]: no matching test"); return; }
+      var count = t.questions.length;
+      var groups = cfg.scoring[name].subscales || cfg.scoring[name].traits;
+      if (groups) Object.keys(groups).forEach(function (g) {
+        groups[g].forEach(function (idx) {
+          if (!Number.isInteger(idx) || idx < 1 || idx > count) {
+            problems.push("scoring[" + name + "]." + g + ": item " + idx + " out of range 1.." + count);
+          }
+        });
+      });
+    });
+
+    Object.keys(cfg.thresholds || {}).forEach(function (name) {
+      var byKey = cfg.thresholds[name];
+      Object.keys(byKey).forEach(function (key) {
+        var ranges = byKey[key].ranges;
+        if (!Array.isArray(ranges)) { problems.push("thresholds[" + name + "]." + key + ": no ranges"); return; }
+        var prevHi = null;
+        ranges.forEach(function (r, i) {
+          var at = "thresholds[" + name + "]." + key + " range " + i;
+          if (r.length < 3 || typeof r[2] !== "string") problems.push(at + ": malformed");
+          else if (r[0] > r[1]) problems.push(at + ": lo > hi");
+          else if (prevHi !== null && r[0] < prevHi) problems.push(at + ": overlaps previous");
+          prevHi = r[1];
+        });
+      });
+    });
+
+    return problems;
+  }
+
   // ── CSV helper ────────────────────────────────────────────────────
 
   /**
@@ -726,6 +788,9 @@
    * download button, keyboard shortcuts (Enter, 1-9), and beforeunload warning.
    */
   function init() {
+    var configProblems = validateConfig(C);
+    if (configProblems.length) console.error("CONFIG validation problems:", configProblems);
+
     // Set page text from config
     document.title = ui.pageTitle;
     var h1 = $("h1");
@@ -789,6 +854,7 @@
     window.__TEST__.getInterpretation = getInterpretation;
     window.__TEST__.interpClass = interpClass;
     window.__TEST__.csvEscape = csvEscape;
+    window.__TEST__.validateConfig = validateConfig;
     window.__TEST__.state = state;
   }
 

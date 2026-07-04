@@ -159,6 +159,16 @@
     assert(getInterp("FQ", "Agoraphobia", 5) !== "", "FQ Agoraphobia interp: 5 has label");
     assert(getInterp("FQ", "GlobalPhobiaRating", 1) !== "", "FQ GlobalPhobia interp: 1 has label");
 
+    // ── Config integrity tests ──────────────────────────────────────
+    function clone(o) { return JSON.parse(JSON.stringify(o)); }
+    assert(T.validateConfig(C).length === 0, "validateConfig: live config has no structural problems");
+    var badScores = clone(C); badScores.tests[0].questions[0].scores = [1, 2];
+    assert(T.validateConfig(badScores).length > 0, "validateConfig: catches options/scores length mismatch");
+    var badIndex = clone(C); badIndex.scoring.HADS.subscales.Anxiety.push(99);
+    assert(T.validateConfig(badIndex).length > 0, "validateConfig: catches out-of-range item index");
+    var badRange = clone(C); badRange.thresholds.HADS.Anxiety.ranges[0] = [10, 0, "Bad"];
+    assert(T.validateConfig(badRange).length > 0, "validateConfig: catches lo > hi range");
+
     // ── CSV escape tests ────────────────────────────────────────────
     assert(csvEscape("hello") === "hello", "csvEscape: plain text unchanged");
     assert(csvEscape("hello,world") === '"hello,world"', "csvEscape: comma wrapped in quotes");
