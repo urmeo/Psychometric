@@ -162,7 +162,7 @@
         var subs = cfg.subscales;
         Object.keys(subs).forEach(function (s) { scores[test.name][s] = 0; });
         testAnswers.forEach(function (a, idx) {
-          var qNum = idx + 1;
+          var qNum = a.questionIndex != null ? a.questionIndex : idx + 1;
           Object.keys(subs).forEach(function (s) {
             if (subs[s].indexOf(qNum) !== -1) scores[test.name][s] += a.score;
           });
@@ -172,7 +172,7 @@
         var traits = cfg.traits;
         Object.keys(traits).forEach(function (t) { scores[test.name][t] = 0; });
         testAnswers.forEach(function (a, idx) {
-          var qNum = idx + 1;
+          var qNum = a.questionIndex != null ? a.questionIndex : idx + 1;
           Object.keys(traits).forEach(function (t) {
             if (traits[t].indexOf(qNum) !== -1) scores[test.name][t] += a.score;
           });
@@ -471,6 +471,7 @@
 
     state.answers.push({
       test: currentTest.name,
+      questionIndex: state.currentQuestionIndex + 1,
       question: currentQuestion.q,
       answer: label ? label.textContent.trim() : "",
       score: rawScore,
