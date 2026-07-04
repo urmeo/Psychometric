@@ -52,15 +52,15 @@
     // Helper to build mock answers for a test
     function mockAnswers(testName, scoreValue) {
       var test = C.tests.filter(function (t) { return t.name === testName; })[0];
-      return test.questions.map(function (q) {
-        return { test: testName, question: q.q, answer: "", score: scoreValue, time: 1, questionStartTime: "", answerTime: "" };
+      return test.questions.map(function (q, i) {
+        return { test: testName, questionIndex: i + 1, question: q.q, answer: "", score: scoreValue, time: 1, questionStartTime: "", answerTime: "" };
       });
     }
 
     function mockAnswersPerItem(testName, scores) {
       var test = C.tests.filter(function (t) { return t.name === testName; })[0];
       return test.questions.map(function (q, i) {
-        return { test: testName, question: q.q, answer: "", score: scores[i], time: 1, questionStartTime: "", answerTime: "" };
+        return { test: testName, questionIndex: i + 1, question: q.q, answer: "", score: scores[i], time: 1, questionStartTime: "", answerTime: "" };
       });
     }
 
@@ -158,6 +158,19 @@
     // FQ subscales
     assert(getInterp("FQ", "Agoraphobia", 5) !== "", "FQ Agoraphobia interp: 5 has label");
     assert(getInterp("FQ", "GlobalPhobiaRating", 1) !== "", "FQ GlobalPhobia interp: 1 has label");
+
+    // ── Position-independence: scoring follows questionIndex, not order ──
+    // Answers carrying correct questionIndex but shuffled in the array must still
+    // route to the right subscale — proving scoring no longer keys off position.
+    var hadsQs = C.tests.filter(function (t) { return t.name === "HADS"; })[0].questions;
+    state.tests = C.tests.filter(function (t) { return t.name === "HADS"; });
+    var built = hadsQs.map(function (q, i) {
+      return { test: "HADS", questionIndex: i + 1, question: q.q, answer: "", score: i + 1, time: 1, questionStartTime: "", answerTime: "" };
+    });
+    state.answers = built.slice().reverse();
+    s = calcScores();
+    assert(s.HADS.Anxiety === (1 + 3 + 5 + 7 + 9 + 11 + 13), "HADS scoring follows questionIndex even when answers are shuffled");
+    assert(s.HADS.Depression === (2 + 4 + 6 + 8 + 10 + 12 + 14), "HADS Depression follows questionIndex when shuffled");
 
     // ── Config integrity tests ──────────────────────────────────────
     function clone(o) { return JSON.parse(JSON.stringify(o)); }
