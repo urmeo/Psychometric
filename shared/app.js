@@ -206,8 +206,9 @@
     for (var i = 0; i < ranges.length; i++) {
       if (score >= ranges[i][0] && score <= ranges[i][1]) return ranges[i][2];
     }
-    // Fallback: return last label if score exceeds all ranges
-    return ranges.length > 0 ? ranges[ranges.length - 1][2] : "";
+    // Fail closed: an out-of-range score returns no label rather than silently
+    // reporting the highest-severity band.
+    return "";
   }
 
   /**

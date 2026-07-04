@@ -147,6 +147,13 @@
     assert(getInterp("BFI", "Openness", 1.5) !== "", "BFI interp: 1.5 has label");
     assert(getInterp("BFI", "Openness", 2) !== getInterp("BFI", "Openness", 2.5), "BFI interp: 2 vs 2.5 boundary");
 
+    // Out-of-range scores must fail CLOSED (no label), never report the top band.
+    assert(getInterp("HADS", "Anxiety", -1) === "", "HADS interp: below-min -> no label");
+    assert(getInterp("HADS", "Anxiety", 99) === "", "HADS interp: above-max -> no label");
+    assert(getInterp("STAI-S", "Total", 0) === "", "STAI-S interp: below-min -> no label");
+    assert(getInterp("BFI", "Openness", 0.5) === "", "BFI interp: below-min -> no label");
+    assert(getInterp("BFI", "Openness", 5.5) === "", "BFI interp: above-max -> no label");
+
     // FQ subscales
     assert(getInterp("FQ", "Agoraphobia", 5) !== "", "FQ Agoraphobia interp: 5 has label");
     assert(getInterp("FQ", "GlobalPhobiaRating", 1) !== "", "FQ GlobalPhobia interp: 1 has label");
