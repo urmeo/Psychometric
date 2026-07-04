@@ -90,6 +90,10 @@ All scoring happens client-side in the browser. No response data is sent to or s
 - Rammstedt, B. & John, O. P. (2007). Measuring personality in one minute or less. *Journal of Research in Personality*, 41(1), 203--212.
 - Marks, I. M. & Mathews, A. M. (1979). Brief standard self-rating for phobic patients. *Behaviour Research and Therapy*, 17(3), 263--267.
 
+## Instrument Copyright
+
+The MIT license covers the software only. The instruments are copyright of their respective owners and require appropriate permission to administer -- STAI (Mind Garden) and HADS (GL Assessment) are commercial and require a purchased license. See [NOTICE.md](NOTICE.md) before deploying.
+
 ## Tech Stack
 
 JavaScript (ES5) · HTML5 · CSS3 · Bootstrap 5 · jsPDF · LocalStorage API · Blob API
@@ -105,4 +109,4 @@ Psychometrics · Anxiety · Depression · HADS · STAI · BFI-10 · Fear Questio
 
 ## License
 
-[MIT](LICENSE)
+Software: [MIT](LICENSE). Instruments: copyright of their respective owners -- see [NOTICE.md](NOTICE.md).
