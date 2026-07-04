@@ -229,6 +229,60 @@
       assert(staiS[2].scores[0] === 1, "STAI-S keying: 'I am tense' direct-scored (not at all -> 1)");
     }
 
+    // ── FQ EN/FR divergence point (GlobalPhobiaRating vs AnxietyDepression) ──
+    // These two subscales sit at different item indices in EN vs FR. Pin each
+    // language's own mapping AND isolate the items, so a mis-map or an accidental
+    // EN=FR alignment fails loudly instead of silently mis-scoring phobia severity.
+    var fqSub = C.scoring.FQ.subscales;
+    var expectedFq = C.lang === "fr"
+      ? { GlobalPhobiaRating: [24], AnxietyDepression: [18, 19, 20, 21, 22] }
+      : { GlobalPhobiaRating: [18], AnxietyDepression: [19, 20, 21, 22, 23] };
+    assert(JSON.stringify(fqSub.GlobalPhobiaRating) === JSON.stringify(expectedFq.GlobalPhobiaRating), "FQ config: GlobalPhobiaRating indices match this language's form");
+    assert(JSON.stringify(fqSub.AnxietyDepression) === JSON.stringify(expectedFq.AnxietyDepression), "FQ config: AnxietyDepression indices match this language's form");
+
+    state.tests = C.tests.filter(function (t) { return t.name === "FQ"; });
+    var gItems = fqSub.GlobalPhobiaRating;
+    var gScores = state.tests[0].questions.map(function (q, i) { return gItems.indexOf(i + 1) !== -1 ? 8 : 0; });
+    state.answers = mockAnswersPerItem("FQ", gScores);
+    s = calcScores();
+    assert(s.FQ.GlobalPhobiaRating === gItems.length * 8, "FQ mapping: GlobalPhobiaRating isolates its own item(s)");
+    assert(s.FQ.AnxietyDepression === 0, "FQ mapping: AnxietyDepression unaffected by GlobalPhobiaRating");
+
+    var adItems = fqSub.AnxietyDepression;
+    var adScores = state.tests[0].questions.map(function (q, i) { return adItems.indexOf(i + 1) !== -1 ? 8 : 0; });
+    state.answers = mockAnswersPerItem("FQ", adScores);
+    s = calcScores();
+    assert(s.FQ.AnxietyDepression === adItems.length * 8, "FQ mapping: AnxietyDepression isolates its own items");
+    assert(s.FQ.GlobalPhobiaRating === 0, "FQ mapping: GlobalPhobiaRating unaffected by AnxietyDepression");
+    assert(s.FQ.TotalPhobia === 0, "FQ mapping: TotalPhobia excludes AnxietyDepression items");
+
+    // ── STAI reverse-key sets (both languages, read from option order) ──
+    // A reverse-keyed item scores the "anxiety-absent" answer high (scores[0] === 4).
+    // Uniform-answer totals can't catch a broken reverse map; this can.
+    function reverseSet(name) {
+      var qs = C.tests.filter(function (t) { return t.name === name; })[0].questions;
+      var out = [];
+      qs.forEach(function (q, i) { if (q.scores[0] === 4) out.push(i + 1); });
+      return out;
+    }
+    assert(JSON.stringify(reverseSet("STAI-S")) === JSON.stringify([1, 2, 5, 8, 10, 11, 15, 16, 19, 20]), "STAI-S reverse set matches Form Y");
+    var expectedT = C.lang === "fr" ? [1, 3, 6, 7, 10, 13, 14, 16, 19] : [1, 6, 7, 10, 13, 16, 19];
+    assert(JSON.stringify(reverseSet("STAI-T")) === JSON.stringify(expectedT), "STAI-T reverse set matches this language's form");
+
+    var staiTQs = C.tests.filter(function (t) { return t.name === "STAI-T"; })[0].questions;
+    var cleanKeying = staiTQs.every(function (q) {
+      var k = JSON.stringify(q.scores);
+      return k === "[4,3,2,1]" || k === "[1,2,3,4]";
+    });
+    assert(cleanKeying, "STAI-T: every item is a clean reverse (4..1) or direct (1..4) keying");
+
+    // Mixed (non-uniform) STAI-T answers, unlike all-1/all-4, exercise reversal.
+    state.tests = C.tests.filter(function (t) { return t.name === "STAI-T"; });
+    var mixT = staiTQs.map(function (q, i) { return q.scores[i % 4]; });
+    state.answers = mockAnswersPerItem("STAI-T", mixT);
+    s = calcScores();
+    assert(s["STAI-T"] === mixT.reduce(function (a, b) { return a + b; }, 0), "STAI-T mixed answers total correctly");
+
     // ── Threshold band labels (read expected label from CONFIG) ────────
     // Stronger than "differs from neighbour": assert each boundary score
     // returns its OWN band's label. Reading the label from CONFIG keeps this
