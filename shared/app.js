@@ -437,7 +437,8 @@
 
     var container = el("div");
     var qId = "q-text-" + state.currentTestIndex + "-" + state.currentQuestionIndex;
-    container.appendChild(el("p", { className: "question", id: qId, text: question.q }));
+    var qEl = el("p", { className: "question", id: qId, tabindex: "-1", text: question.q });
+    container.appendChild(qEl);
 
     var radioGroup = el("div", { role: "radiogroup", "aria-labelledby": qId });
     question.options.forEach(function (option, idx) {
@@ -458,6 +459,7 @@
 
     area.appendChild(container);
     updateProgressBar();
+    if (qEl.focus) qEl.focus(); // move focus so the new question is announced
   }
 
   /**
@@ -512,7 +514,8 @@
     var area = $("#results-area");
     empty(area);
 
-    area.appendChild(el("h2", { text: ui.resultsHeading }));
+    var heading = el("h2", { tabindex: "-1", text: ui.resultsHeading });
+    area.appendChild(heading);
     if (state.participantId) {
       area.appendChild(el("p", null, [el("strong", { text: ui.participantLabel2 }), " " + state.participantId]));
     }
@@ -520,6 +523,7 @@
 
     // Build table
     var table = el("table", { className: "table table-bordered" });
+    table.appendChild(el("caption", { className: "visually-hidden", text: ui.resultsTableCaption }));
     var thead = el("thead");
     var headRow = el("tr");
     [ui.colScale, ui.colSubscale, ui.colScore, ui.colInterpretation].forEach(function (h) {
@@ -567,6 +571,7 @@
     area.appendChild(disc);
 
     removeClass(area, "hidden");
+    if (heading.focus) heading.focus(); // announce results to screen readers
   }
 
   // ── Export: CSV ────────────────────────────────────────────────────
