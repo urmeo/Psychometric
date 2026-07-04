@@ -12,6 +12,8 @@ window.CONFIG = {
     nextBtn: "Suivant",
     downloadCsvBtn: "T\u00e9l\u00e9charger CSV",
     downloadPdfBtn: "T\u00e9l\u00e9charger PDF",
+    clearDataBtn: "Effacer les donn\u00e9es enregistr\u00e9es",
+    dataCleared: "Donn\u00e9es effac\u00e9es de ce navigateur.",
     consent:
       "Cette \u00e9valuation comprend des instruments psychom\u00e9triques standardis\u00e9s (HADS, STAI, BFI-10, Questionnaire des Peurs). " +
       "Toutes les r\u00e9ponses sont trait\u00e9es localement dans votre navigateur. Aucune donn\u00e9e n\u2019est envoy\u00e9e ou stock\u00e9e sur un serveur, sauf si vous les exportez explicitement.",
