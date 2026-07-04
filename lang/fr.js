@@ -237,7 +237,7 @@ window.CONFIG = {
       Total: { ranges: [[20, 37, "Anxi\u00e9t\u00e9 faible"], [38, 44, "Anxi\u00e9t\u00e9 mod\u00e9r\u00e9e"], [45, 80, "Anxi\u00e9t\u00e9 \u00e9lev\u00e9e"]] },
     },
     BFI: {
-      _default: { ranges: [[1, 2, "Faible"], [2.01, 3.5, "Moyen"], [3.51, 5, "\u00c9lev\u00e9"]] },
+      _default: { ranges: [[1, 2.5, "Sous le point m\u00e9dian"], [2.5, 3.5, "Proche du point m\u00e9dian"], [3.5, 5, "Au-dessus du point m\u00e9dian"]] },
     },
     FQ: {
       MainPhobia: { ranges: [[0, 2, "L\u00e9ger"], [3, 5, "Mod\u00e9r\u00e9"], [6, 8, "S\u00e9v\u00e8re"]] },

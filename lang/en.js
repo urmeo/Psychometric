@@ -357,7 +357,7 @@ window.CONFIG = {
       Total: { ranges: [[20, 37, "Low anxiety"], [38, 44, "Moderate anxiety"], [45, 80, "High anxiety"]] },
     },
     BFI: {
-      _default: { ranges: [[1, 2, "Low"], [2.01, 3.5, "Average"], [3.51, 5, "High"]] },
+      _default: { ranges: [[1, 2.5, "Under midpoint"], [2.5, 3.5, "Near midpoint"], [3.5, 5, "Above midpoint"]] },
     },
     FQ: {
       MainPhobia: { ranges: [[0, 2, "Mild"], [3, 5, "Moderate"], [6, 8, "Severe"]] },
