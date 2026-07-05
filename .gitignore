@@ -20,5 +20,5 @@ venv/
 node_modules/
 
 # Generated exports
-Psychometric_Test_Results.csv
-Psychometric Test Suite.pdf
+Psychometric_Test_Results*.csv
+Psychometric_Test_Results*.pdf
