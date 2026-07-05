@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
 
       # Works whether or not a package-lock.json is committed:
       # generate a lockfile in place without installing packages.
