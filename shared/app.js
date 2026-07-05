@@ -833,7 +833,7 @@
         handleNext();
       } else if (e.key >= "1" && e.key <= "9") {
         var idx = parseInt(e.key, 10) - 1;
-        var radios = $$('input[type="radio"]');
+        var radios = $$('#test-area input[type="radio"]');
         if (idx < radios.length) radios[idx].checked = true;
       }
     });
