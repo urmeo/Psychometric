@@ -648,11 +648,12 @@
   /**
    * Generate and trigger download of a PDF report using jsPDF.
    * Contains summary scores with interpretations followed by all individual
-   * responses. Falls back to an alert if jsPDF is unavailable.
+   * responses. Falls back to CSV export if jsPDF is unavailable.
    */
   function generatePDF() {
     try {
       if (!window.jspdf) {
+        generateCSV();
         alert(ui.alertPdfFail);
         return;
       }
