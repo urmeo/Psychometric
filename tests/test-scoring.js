@@ -148,6 +148,12 @@
     assert(getInterp("BFI", "Openness", 2) !== getInterp("BFI", "Openness", 3), "BFI interp: 2 vs 3 boundary");
     assert(T.interpClass(getInterp("BFI", "Openness", 5)) === "", "BFI: top of scale is not colored as clinical severity");
 
+    // Boundary means 2.5 and 3.5 are equidistant from the midpoint and must land
+    // in the same (middle) band.
+    var bfiMid = C.thresholds.BFI._default.ranges[1][2];
+    assert(getInterp("BFI", "Openness", 2.5) === bfiMid, "BFI interp: 2.5 -> middle band");
+    assert(getInterp("BFI", "Openness", 3.5) === bfiMid, "BFI interp: 3.5 -> middle band");
+
     // Out-of-range scores must fail CLOSED (no label), never report the top band.
     assert(getInterp("HADS", "Anxiety", -1) === "", "HADS interp: below-min -> no label");
     assert(getInterp("HADS", "Anxiety", 99) === "", "HADS interp: above-max -> no label");
@@ -181,6 +187,8 @@
     assert(T.validateConfig(badIndex).length > 0, "validateConfig: catches out-of-range item index");
     var badRange = clone(C); badRange.thresholds.HADS.Anxiety.ranges[0] = [10, 0, "Bad"];
     assert(T.validateConfig(badRange).length > 0, "validateConfig: catches lo > hi range");
+    var badOverlap = clone(C); badOverlap.thresholds.HADS.Anxiety.ranges = [[0, 7, "A"], [7, 21, "B"]];
+    assert(T.validateConfig(badOverlap).length > 0, "validateConfig: catches shared-boundary overlap");
 
     // ── CSV escape tests ────────────────────────────────────────────
     assert(csvEscape("hello") === "hello", "csvEscape: plain text unchanged");
