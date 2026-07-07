@@ -196,6 +196,13 @@
     assert(csvEscape('say "hi"') === '"say ""hi"""', "csvEscape: quotes doubled and wrapped");
     assert(csvEscape("line1\nline2") === '"line1\nline2"', "csvEscape: newline wrapped in quotes");
 
+    // Spreadsheet formula injection must be neutralized with a leading quote.
+    assert(csvEscape("=1+1") === "'=1+1", "csvEscape: = prefix neutralized");
+    assert(csvEscape("+SUM(A1)") === "'+SUM(A1)", "csvEscape: + prefix neutralized");
+    assert(csvEscape("-2") === "'-2", "csvEscape: - prefix neutralized");
+    assert(csvEscape("@cmd") === "'@cmd", "csvEscape: @ prefix neutralized");
+    assert(csvEscape("=a,b") === "\"'=a,b\"", "csvEscape: injection guard composes with quoting");
+
     // ── Score formatting (shared by table, CSV, PDF) ────────────────
     var fmt = T.formatScoreValue;
     assert(fmt(3) === "3", "formatScoreValue: integer unchanged");
@@ -303,7 +310,9 @@
     });
     assert(cleanKeying, "STAI-T: every item is a clean reverse (4..1) or direct (1..4) keying");
 
-    // Mixed (non-uniform) STAI-T answers, unlike all-1/all-4, exercise reversal.
+    // Non-uniform answers: total scoring must sum exactly, with no dropped or
+    // duplicated items. (Reverse-keying itself is guarded by the reverseSet
+    // assertions above — it is applied at capture, not at summation.)
     state.tests = C.tests.filter(function (t) { return t.name === "STAI-T"; });
     var mixT = staiTQs.map(function (q, i) { return q.scores[i % 4]; });
     state.answers = mockAnswersPerItem("STAI-T", mixT);

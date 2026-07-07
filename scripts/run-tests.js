@@ -13,8 +13,10 @@ async function runTestFile(browser, { file, label }) {
   console.log(`\n--- ${label} tests (${file}) ---`);
 
   const page = await browser.newPage();
+  let pageErrors = 0;
 
   page.on("pageerror", (err) => {
+    pageErrors++;
     console.error(`  Page error: ${err.message}`);
   });
 
@@ -25,11 +27,8 @@ async function runTestFile(browser, { file, label }) {
   });
 
   await page.goto(url, { waitUntil: "domcontentloaded" });
-
-  // Wait for test results to render (the h2 summary appears inside #test-results)
   await page.waitForSelector("#test-results h2", { timeout: 15000 });
 
-  // Extract results from the rendered table
   const results = await page.evaluate(() => {
     const h2 = document.querySelector("#test-results h2");
     const rows = document.querySelectorAll("#test-results table tbody tr");
@@ -37,7 +36,6 @@ async function runTestFile(browser, { file, label }) {
     rows.forEach((row) => {
       const cells = row.querySelectorAll("td");
       tests.push({
-        status: cells[0].textContent.trim(),
         name: cells[1].textContent.trim(),
         passed: cells[0].classList.contains("interp-normal"),
       });
@@ -46,22 +44,32 @@ async function runTestFile(browser, { file, label }) {
   });
 
   console.log(`  ${results.summary}`);
-
-  // Print individual failures
-  const failures = results.tests.filter((t) => !t.passed);
-  if (failures.length > 0) {
-    failures.forEach((t) => {
-      console.log(`  FAIL: ${t.name}`);
-    });
-  }
-
   await page.close();
 
-  const totalFailed = results.tests.filter((t) => !t.passed).length;
-  const totalPassed = results.tests.filter((t) => t.passed).length;
-  console.log(`  ${totalPassed} passed, ${totalFailed} failed`);
+  // Cross-check the scraped rows against the rendered summary so markup drift
+  // can never produce a false green (0 rows scraped = 0 failures detected).
+  const parsed = results.summary.match(/(\d+) passed, (\d+) failed/);
+  if (!parsed) {
+    console.error("  ERROR: could not parse the results summary");
+    return 1;
+  }
+  const declared = { passed: +parsed[1], failed: +parsed[2] };
+  if (results.tests.length !== declared.passed + declared.failed) {
+    console.error(`  ERROR: scraped ${results.tests.length} rows but summary declares ${declared.passed + declared.failed}`);
+    return 1;
+  }
 
-  return totalFailed;
+  const failures = results.tests.filter((t) => !t.passed);
+  failures.forEach((t) => console.log(`  FAIL: ${t.name}`));
+  if (failures.length !== declared.failed) {
+    console.error(`  ERROR: row status disagrees with summary (${failures.length} vs ${declared.failed} failed)`);
+    return 1;
+  }
+  if (pageErrors > 0) {
+    console.error(`  ERROR: ${pageErrors} uncaught page error(s)`);
+    return failures.length + pageErrors;
+  }
+  return failures.length;
 }
 
 (async () => {
