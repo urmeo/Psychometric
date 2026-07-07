@@ -13,8 +13,6 @@ Desktop.ini
 # Environment
 .env
 *.log
-venv/
-.venv/
 
 # Node
 node_modules/

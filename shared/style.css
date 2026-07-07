@@ -1,9 +1,7 @@
 /* Psychometric Test Suite — shared styles */
 :root {
   --color-primary: #007bff;
-  --color-success: #28a745;
   --color-warning: #ffc107;
-  --color-danger: #dc3545;
   --color-light-bg: #f9f9f9;
   --color-border: #ccc;
   --color-resume-bg: #e7f1ff;
