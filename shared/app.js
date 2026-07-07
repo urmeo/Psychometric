@@ -651,6 +651,7 @@
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      state.resultsExported = true;
     } catch (error) {
       console.error("CSV generation failed:", error);
       alert(ui.alertCsvFail);
@@ -732,6 +733,7 @@
       });
 
       doc.save(C.export.pdfFilename);
+      state.resultsExported = true;
     } catch (error) {
       console.error("PDF generation failed:", error);
       alert(ui.alertPdfFail + " " + error.message);
@@ -883,9 +885,10 @@
       });
     }
 
-    // Warn on unload
+    // Warn on unload: mid-test, or on the results screen before any export
+    // (completion clears localStorage, so unexported results are unrecoverable)
     window.addEventListener("beforeunload", function (e) {
-      if (state.testInProgress) {
+      if (state.testInProgress || (state.testEndTime && !state.resultsExported)) {
         e.preventDefault();
         e.returnValue = "";
       }
