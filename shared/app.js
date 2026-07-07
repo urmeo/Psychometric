@@ -124,7 +124,7 @@
   function loadProgress() {
     try {
       var d = JSON.parse(localStorage.getItem(C.storageKey));
-      return d && d.answers && d.answers.length > 0 ? d : null;
+      return d && Array.isArray(d.answers) && d.answers.length > 0 ? d : null;
     } catch (e) { return null; }
   }
 
@@ -410,6 +410,16 @@
       var savedNames = saved.selectedTestNames || allTests.map(function (t) { return t.name; });
       state.tests = allTests.filter(function (t) { return savedNames.indexOf(t.name) !== -1; });
       state.totalQuestions = state.tests.reduce(function (acc, t) { return acc + t.questions.length; }, 0);
+
+      // A save from an older config (or edited by hand) can point past the
+      // current test list; discard it rather than crash mid-resume.
+      var t = state.tests[state.currentTestIndex];
+      if (!t || state.currentQuestionIndex < 0 || state.currentQuestionIndex >= t.questions.length) {
+        clearProgress();
+        showSetupScreen();
+        return;
+      }
+
       empty(area);
       removeClass($("#progress-container"), "hidden");
       var nb = $("#nextBtn");
