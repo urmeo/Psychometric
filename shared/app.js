@@ -290,7 +290,7 @@
           var at = "thresholds[" + name + "]." + key + " range " + i;
           if (r.length < 3 || typeof r[2] !== "string") problems.push(at + ": malformed");
           else if (r[0] > r[1]) problems.push(at + ": lo > hi");
-          else if (prevHi !== null && r[0] < prevHi) problems.push(at + ": overlaps previous");
+          else if (prevHi !== null && r[0] <= prevHi) problems.push(at + ": overlaps previous");
           prevHi = r[1];
         });
       });
