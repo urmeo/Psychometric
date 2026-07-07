@@ -1,7 +1,7 @@
 # Instrument Copyright & Licensing
 
 The [MIT license](LICENSE) covers the **software in this repository only** — the
-application code, scoring engine, tests, and build tooling. It does **not** grant
+application code, scoring engine, tests, and test tooling. It does **not** grant
 any rights to the psychometric instruments themselves.
 
 The five instruments administered by this app are the intellectual property of
