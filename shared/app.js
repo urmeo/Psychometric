@@ -93,7 +93,9 @@
     totalQuestions: 0,
     answers: [],
     testStartTime: null,
+    testEndTime: null,
     questionStartTime: null,
+    resultsExported: false,
     testInProgress: false,
     participantId: "",
     tests: [],
@@ -331,6 +333,17 @@
     return (typeof val === "number" && !Number.isInteger(val)) ? val.toFixed(2) : String(val);
   }
 
+  /**
+   * Session duration in minutes, frozen at completion so the on-screen value
+   * and both exports always agree.
+   * @param {number} decimals
+   * @returns {string}
+   */
+  function sessionMinutes(decimals) {
+    var end = state.testEndTime || new Date();
+    return ((end - state.testStartTime) / 1000 / 60).toFixed(decimals);
+  }
+
   // ── UI Rendering ──────────────────────────────────────────────────
 
   /**
@@ -510,7 +523,7 @@
    * @param {Object<string, number|Object<string, number>>} summary - Output of calculateSummaryScores()
    */
   function displayResults(summary) {
-    var totalTime = ((new Date() - state.testStartTime) / 1000 / 60).toFixed(1);
+    var totalTime = sessionMinutes(1);
     var area = $("#results-area");
     empty(area);
 
@@ -583,8 +596,9 @@
   function generateCSV() {
     try {
       var csv = "\uFEFF";
-      var totalTime = ((new Date() - state.testStartTime) / 1000 / 60).toFixed(2);
-      var date = new Date().toISOString().slice(0, 10);
+      var totalTime = sessionMinutes(2);
+      var now = new Date();
+      var date = now.getFullYear() + "-" + ("0" + (now.getMonth() + 1)).slice(-2) + "-" + ("0" + now.getDate()).slice(-2);
 
       // ── Section 1: Session Info ──
       csv += ui.csvSessionTitle + "\n";
@@ -671,8 +685,7 @@
         doc.text(ui.pdfParticipant + " " + state.participantId, 10, yPos);
         yPos += 6;
       }
-      var totalTime = ((new Date() - state.testStartTime) / 1000 / 60).toFixed(1);
-      doc.text(ui.pdfDuration + " " + totalTime + " " + ui.minutes, 10, yPos);
+      doc.text(ui.pdfDuration + " " + sessionMinutes(1) + " " + ui.minutes, 10, yPos);
       yPos += 10;
 
       doc.setFontSize(12);
@@ -781,6 +794,7 @@
       } else {
         // Done
         state.testInProgress = false;
+        state.testEndTime = new Date();
         clearProgress();
         var bar = $(".progress-bar");
         bar.style.width = "100%";
