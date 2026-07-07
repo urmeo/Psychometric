@@ -30,6 +30,8 @@ window.CONFIG = {
     alertAnswer: "Veuillez r\u00e9pondre \u00e0 la question pour continuer.",
     alertCsvFail: "\u00c9chec de la g\u00e9n\u00e9ration CSV. Veuillez r\u00e9essayer.",
     alertPdfFail: "La biblioth\u00e8que PDF n\u2019a pas pu \u00eatre charg\u00e9e. Le fichier CSV a \u00e9t\u00e9 t\u00e9l\u00e9charg\u00e9.",
+    alertPdfError: "\u00c9chec de la g\u00e9n\u00e9ration du PDF. Veuillez utiliser le t\u00e9l\u00e9chargement CSV.",
+    configError: "Erreur de configuration \u2014 le test est d\u00e9sactiv\u00e9 :",
     resultsHeading: "R\u00e9sultats",
     participantLabel2: "Participant :",
     durationLabel: "Dur\u00e9e :",
