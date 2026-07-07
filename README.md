@@ -92,8 +92,10 @@ In-progress sessions (participant ID, answers, timestamps) are saved to the brow
 - Spielberger, C. D., Gorsuch, R. L. & Lushene, R. E. (1970). *Manual for the State-Trait Anxiety Inventory (Form X)*. Consulting Psychologists Press.
 - Spielberger, C. D. (1983). *State-Trait Anxiety Inventory for Adults (STAI-AD)*. APA PsycTests.
 - Gauthier, J. & Bouchard, S. (1993). Adaptation canadienne-française de la forme révisée du State-Trait Anxiety Inventory de Spielberger. *Canadian Journal of Behavioural Science*, 25(4), 559--578.
+- Bergua, V., Meillon, C., Potvin, O., Bouisson, J., Le Goff, M., Rouaud, O., ... Amieva, H. (2012). The STAI-Y trait scale: psychometric properties and normative data from a large population-based study of elderly people. *International Psychogeriatrics*, 24(7), 1163--1171.
 - Rammstedt, B. & John, O. P. (2007). Measuring personality in one minute or less. *Journal of Research in Personality*, 41(1), 203--212.
 - Marks, I. M. & Mathews, A. M. (1979). Brief standard self-rating for phobic patients. *Behaviour Research and Therapy*, 17(3), 263--267.
+- Cottraux, J., Bouvard, M. & Messy, P. (1987). Validation et analyse factorielle d'une échelle de phobies. La version française du questionnaire des peurs de Marks et Mathews. *L'Encéphale*, 13(1), 23--29.
 
 ## Instrument Copyright
 
