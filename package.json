@@ -1,6 +1,7 @@
 {
   "name": "psychometric",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "test": "node scripts/run-tests.js"
   },
