@@ -6,6 +6,8 @@
 
 A bilingual (English / French) web app for administering five standardized psychometric instruments with automated scoring, clinical interpretation, and CSV/PDF export. Fully offline, fully private.
 
+> **Disclaimer:** results are produced by a screening tool for research and educational use. They are not a clinical diagnosis; interpretation and any clinical decision require a qualified healthcare professional.
+
 ## Instruments
 
 | Test | Items | Measures | Subscales | Score Range |
@@ -14,14 +16,14 @@ A bilingual (English / French) web app for administering five standardized psych
 | **STAI-S** | 20 | State Anxiety | Current anxiety level | 20 - 80 |
 | **STAI-T** | 20 | Trait Anxiety | General anxiety tendency | 20 - 80 |
 | **BFI-10** | 10 | Big Five Personality | Extraversion, Agreeableness, Conscientiousness, Neuroticism, Openness | 1.0 - 5.0 per trait |
-| **FQ** | 24 | Fear Questionnaire | Agoraphobia, Blood-Injury, Social Phobia, Total | 0 - 120 |
+| **FQ** | 24 | Fear Questionnaire | Main Phobia, Total Phobia, Agoraphobia, Blood-Injury, Social, Global Rating, Anxiety-Depression | 0 - 120 (Total Phobia); 0 - 40 per phobia subscale |
 
 ## Features
 
 - **Automated scoring** -- reverse-scoring, subscale sums, trait averages, and clinical thresholds
 - **Color-coded results** -- Normal / Borderline / Abnormal labels at a glance
 - **CSV + PDF export** -- separate download buttons for analysis and clinical records
-- **Bilingual** -- validated English and French translations with locale-specific scoring rules
+- **Bilingual** -- English and French instrument versions with locale-specific item mappings and reverse-scoring keys (EN Form X-2 / FR Form Y for STAI-T; different FQ item order); clinical thresholds are shared across languages
 - **Fully offline** -- all dependencies bundled; runs from `file://` with no server
 - **Privacy-first** -- zero data leaves the browser unless explicitly exported
 - **Unit tested** -- in-browser test suite verifies all scoring logic
@@ -63,7 +65,7 @@ cd Psychometric
 
 Open `en/index.html` (English) or `fr/index.html` (French) in any browser -- no server required.
 
-Or open `index.html` for a language selector that redirects automatically.
+Or open `index.html` for a language chooser.
 
 ## Running Tests
 
@@ -87,8 +89,9 @@ In-progress sessions (participant ID, answers, timestamps) are saved to the brow
 ## References
 
 - Zigmond, A. S. & Snaith, R. P. (1983). The Hospital Anxiety and Depression Scale. *Acta Psychiatrica Scandinavica*, 67(6), 361--370.
+- Spielberger, C. D., Gorsuch, R. L. & Lushene, R. E. (1970). *Manual for the State-Trait Anxiety Inventory (Form X)*. Consulting Psychologists Press.
 - Spielberger, C. D. (1983). *State-Trait Anxiety Inventory for Adults (STAI-AD)*. APA PsycTests.
-- Gauthier, J. & Bouchard, S. (1993). Adaptation canadienne-francaise de la forme revisee du State-Trait Anxiety Inventory de Spielberger. *Canadian Journal of Behavioural Science*, 25(4), 559--578.
+- Gauthier, J. & Bouchard, S. (1993). Adaptation canadienne-française de la forme révisée du State-Trait Anxiety Inventory de Spielberger. *Canadian Journal of Behavioural Science*, 25(4), 559--578.
 - Rammstedt, B. & John, O. P. (2007). Measuring personality in one minute or less. *Journal of Research in Personality*, 41(1), 203--212.
 - Marks, I. M. & Mathews, A. M. (1979). Brief standard self-rating for phobic patients. *Behaviour Research and Therapy*, 17(3), 263--267.
 
