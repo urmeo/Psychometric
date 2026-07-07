@@ -137,7 +137,7 @@ window.CONFIG = {
         },
         {
           q: "7. I can sit at ease and feel relaxed:",
-          options: ["Definitely", "Usually", "Not Often", "Not at all"],
+          options: ["Definitely", "Usually", "Not often", "Not at all"],
           scores: [0, 1, 2, 3],
           category: "Anxiety",
         },
@@ -154,7 +154,7 @@ window.CONFIG = {
         },
         {
           q: "9. I get a sort of frightened feeling like 'butterflies' in the stomach:",
-          options: ["Not at all", "Occasionally", "Quite Often", "Very Often"],
+          options: ["Not at all", "Occasionally", "Quite often", "Very often"],
           scores: [0, 1, 2, 3],
           category: "Anxiety",
         },
@@ -170,7 +170,7 @@ window.CONFIG = {
           category: "Depression",
         },
         {
-          q: "11. I feel restless as I have to be on the move:",
+          q: "11. I feel restless as if I have to be on the move:",
           options: [
             "Not at all",
             "Not very much",
@@ -213,7 +213,7 @@ window.CONFIG = {
     {
       name: "STAI-S",
       instructions:
-        "STAI-STATE: Some statements that people have used to describe their feelings are given below. Read each statement and then tick the response option that indicate how you feel right now, that is, at this moment. Do not spend too much time on any one statement, but give the answer which seems to describe your present feelings best.",
+        "STAI-STATE: Some statements that people have used to describe their feelings are given below. Read each statement and then tick the response option that indicates how you feel right now, that is, at this moment. Do not spend too much time on any one statement, but give the answer which seems to describe your present feelings best.",
       questions: [
         { q: "1. I feel calm.", options: ["Not at all", "Somewhat", "Moderately", "Very much"], scores: [4, 3, 2, 1] },
         { q: "2. I feel secure.", options: ["Not at all", "Somewhat", "Moderately", "Very much"], scores: [4, 3, 2, 1] },
@@ -240,8 +240,8 @@ window.CONFIG = {
     {
       name: "STAI-T",
       instructions:
-        "STAI-TRAIT: Some statements that people have used to describe their feelings are given below. Read each statement and then tick the response option that indicate how you generally feel. There are no right or wrong answers. Do not spend too much time on a single statement, but give the answer that comes closest to how you generally feel.",
-      // Spielberger (1983); reverse: 1,6,7,10,13,16,19
+        "STAI-TRAIT: Some statements that people have used to describe their feelings are given below. Read each statement and then tick the response option that indicates how you generally feel. There are no right or wrong answers. Do not spend too much time on a single statement, but give the answer that comes closest to how you generally feel.",
+      // Spielberger et al., Form X-2 (1970); reverse: 1,6,7,10,13,16,19
       questions: [
         { q: "1. I feel fine.", options: ["Almost Never", "Sometimes", "Often", "Almost Always"], scores: [4, 3, 2, 1] },
         { q: "2. I tire quickly.", options: ["Almost Never", "Sometimes", "Often", "Almost Always"], scores: [1, 2, 3, 4] },
@@ -288,11 +288,11 @@ window.CONFIG = {
       instructions:
         "FQ: Choose a number from the scale below to show how much you would avoid each of the situations listed below because of fear or other unpleasant feelings.",
       questions: [
-        { q: "1. Main phobia you want treated (agoraphobia)", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "MainPhobia" },
+        { q: "1. Main phobia you want treated (describe in your own words, then rate 0-8)", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "MainPhobia" },
         { q: "2. Injections or minor surgery", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "BloodInjuryPhobia" },
         { q: "3. Eating or drinking with other people", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "SocialPhobia" },
         { q: "4. Hospitals", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "BloodInjuryPhobia" },
-        { q: "5. Traveling alone or by bus", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "Agoraphobia" },
+        { q: "5. Traveling alone by bus or coach", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "Agoraphobia" },
         { q: "6. Walking alone in busy streets", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "Agoraphobia" },
         { q: "7. Being watched or stared at", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "SocialPhobia" },
         { q: "8. Going into crowded shops", options: ["0 - would not avoid it", "1", "2 - slightly avoid it", "3", "4 - definitely avoid it", "5", "6 - markedly avoid it", "7", "8 - always avoid it"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8], category: "Agoraphobia" },
