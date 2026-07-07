@@ -853,7 +853,12 @@
       } else if (e.key >= "1" && e.key <= "9") {
         var idx = parseInt(e.key, 10) - 1;
         var radios = $$('#test-area input[type="radio"]');
-        if (idx < radios.length) radios[idx].checked = true;
+        if (idx < radios.length) {
+          // focus + click (not bare .checked) so screen readers announce
+          // the selection and change listeners fire
+          radios[idx].focus();
+          radios[idx].click();
+        }
       }
     });
 
