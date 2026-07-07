@@ -28,6 +28,8 @@ window.CONFIG = {
     alertAnswer: "Please answer the question to proceed.",
     alertCsvFail: "Failed to generate CSV. Please try again.",
     alertPdfFail: "PDF library failed to load. CSV file has been downloaded instead.",
+    alertPdfError: "Failed to generate the PDF. Please use the CSV download.",
+    configError: "Configuration error — testing is disabled:",
     resultsHeading: "Results",
     participantLabel2: "Participant:",
     durationLabel: "Duration:",
