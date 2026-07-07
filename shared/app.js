@@ -19,33 +19,18 @@
   var ui = C.ui;
   var allTests = C.tests;
 
-  // ── DOM helpers (jQuery replacement) ──────────────────────────────
+  // ── DOM helpers ───────────────────────────────────────────────────
 
-  /**
-   * Shorthand for document.querySelector.
-   * @param {string} sel - CSS selector
-   * @returns {Element|null}
-   */
   function $(sel) { return document.querySelector(sel); }
-
-  /**
-   * Shorthand for document.querySelectorAll.
-   * @param {string} sel - CSS selector
-   * @returns {NodeList}
-   */
   function $$(sel) { return document.querySelectorAll(sel); }
 
   /**
-   * Create a DOM element with optional attributes and children.
-   *
-   * Special attribute keys:
-   *  - "text"      → sets textContent (safe, no HTML injection)
-   *  - "html"      → sets innerHTML (use only with trusted content)
-   *  - "className" → sets the element's className property
-   *  - all others  → passed to setAttribute()
+   * Create a DOM element. Special attribute keys: "text" sets textContent
+   * (the only content path — never innerHTML), "className" sets the class;
+   * everything else goes through setAttribute().
    *
    * @param {string} tag - HTML tag name
-   * @param {Object|null} attrs - Attribute map (may include "text", "html", "className")
+   * @param {Object|null} attrs - Attribute map
    * @param {Array<Element|string>} [children] - Child nodes or text strings to append
    * @returns {Element}
    */
@@ -53,7 +38,6 @@
     var node = document.createElement(tag);
     if (attrs) Object.keys(attrs).forEach(function (k) {
       if (k === "text") { node.textContent = attrs[k]; }
-      else if (k === "html") { node.innerHTML = attrs[k]; }
       else if (k === "className") { node.className = attrs[k]; }
       else { node.setAttribute(k, attrs[k]); }
     });
@@ -64,11 +48,8 @@
     return node;
   }
 
-  /** Remove all child nodes from an element. @param {Element} node */
   function empty(node) { while (node.firstChild) node.removeChild(node.firstChild); }
-  /** @param {Element} node @param {string} cls */
   function addClass(node, cls) { node.classList.add(cls); }
-  /** @param {Element} node @param {string} cls */
   function removeClass(node, cls) { node.classList.remove(cls); }
 
   // ── State ─────────────────────────────────────────────────────────
@@ -226,7 +207,6 @@
   function interpClass(label) {
     if (!label) return "";
     var l = label.toLowerCase();
-    // Check abnormal/anormal BEFORE normal (substring match)
     if (l.indexOf("abnormal") !== -1 || l.indexOf("anormal") !== -1 ||
         l.indexOf("high") !== -1 || l.indexOf("severe") !== -1 ||
         l.indexOf("\u00e9lev\u00e9") !== -1 || l.indexOf("s\u00e9v\u00e8re") !== -1) return "interp-abnormal";
@@ -482,7 +462,7 @@
 
     area.appendChild(container);
     updateProgressBar();
-    if (qEl.focus) qEl.focus(); // move focus so the new question is announced
+    qEl.focus(); // announce the new question to screen readers
   }
 
   /**
@@ -594,7 +574,7 @@
     area.appendChild(disc);
 
     removeClass(area, "hidden");
-    if (heading.focus) heading.focus(); // announce results to screen readers
+    heading.focus(); // announce results to screen readers
   }
 
   // ── Export: CSV ────────────────────────────────────────────────────
@@ -643,7 +623,7 @@
         csv += [
           csvEscape(a.test),
           csvEscape(a.question),
-          csvEscape(a.answer.trim()),
+          csvEscape(a.answer),
           csvEscape(a.score),
           csvEscape(a.time.toFixed(2)),
           csvEscape(a.questionStartTime),
@@ -738,7 +718,7 @@
         var qText = a.question.length > maxLen ? a.question.substring(0, maxLen) + "..." : a.question;
         doc.text("Test: " + a.test, 10, yPos);
         doc.text("Q: " + qText, 10, yPos + 5);
-        doc.text(ui.pdfAnswer + " " + a.answer.trim() + " | " + ui.pdfScore + " " + a.score + " | " + ui.pdfTime + " " + a.time.toFixed(1) + "s", 10, yPos + 10);
+        doc.text(ui.pdfAnswer + " " + a.answer + " | " + ui.pdfScore + " " + a.score + " | " + ui.pdfTime + " " + a.time.toFixed(1) + "s", 10, yPos + 10);
         yPos += 18;
       });
 
