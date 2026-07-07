@@ -19,6 +19,8 @@
   var ui = C.ui;
   var allTests = C.tests;
 
+  function isInt(v) { return typeof v === "number" && isFinite(v) && Math.floor(v) === v; }
+
   // ── DOM helpers ───────────────────────────────────────────────────
 
   function $(sel) { return document.querySelector(sel); }
@@ -253,7 +255,7 @@
       var groups = cfg.scoring[name].subscales || cfg.scoring[name].traits;
       if (groups) Object.keys(groups).forEach(function (g) {
         groups[g].forEach(function (idx) {
-          if (!Number.isInteger(idx) || idx < 1 || idx > count) {
+          if (!isInt(idx) || idx < 1 || idx > count) {
             problems.push("scoring[" + name + "]." + g + ": item " + idx + " out of range 1.." + count);
           }
         });
@@ -310,7 +312,7 @@
    * @returns {string}
    */
   function formatScoreValue(val) {
-    return (typeof val === "number" && !Number.isInteger(val)) ? val.toFixed(2) : String(val);
+    return (typeof val === "number" && !isInt(val)) ? val.toFixed(2) : String(val);
   }
 
   /**
