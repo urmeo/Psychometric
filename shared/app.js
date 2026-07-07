@@ -853,8 +853,10 @@
 
     // Keyboard navigation
     document.addEventListener("keydown", function (e) {
-      if (!state.testInProgress) return;
+      if (!state.testInProgress || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "Enter") {
+        // Let a focused button keep its native Enter activation
+        if (e.target && e.target.tagName === "BUTTON") return;
         e.preventDefault();
         handleNext();
       } else if (e.key >= "1" && e.key <= "9") {
