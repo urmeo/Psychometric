@@ -746,7 +746,7 @@
       state.resultsExported = true;
     } catch (error) {
       console.error("PDF generation failed:", error);
-      alert(ui.alertPdfFail + " " + error.message);
+      alert(ui.alertPdfError + " " + error.message);
     }
   }
 
