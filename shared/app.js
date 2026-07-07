@@ -832,8 +832,17 @@
    * download button, keyboard shortcuts (Enter, 1-9), and beforeunload warning.
    */
   function init() {
+    // A structurally broken config must not administer or score anything.
     var configProblems = validateConfig(C);
-    if (configProblems.length) console.error("CONFIG validation problems:", configProblems);
+    if (configProblems.length) {
+      console.error("CONFIG validation problems:", configProblems);
+      var setupArea = $("#setup-area");
+      if (setupArea) {
+        empty(setupArea);
+        setupArea.appendChild(el("div", { className: "disclaimer", text: ui.configError + " " + configProblems.join("; ") }));
+      }
+      return;
+    }
 
     // Set page text from config
     document.title = ui.pageTitle;
