@@ -19,11 +19,5 @@ jobs:
         with:
           node-version: "22"
 
-      # Works whether or not a package-lock.json is committed:
-      # generate a lockfile in place without installing packages.
-      - name: Ensure lockfile
-        run: npm install --package-lock-only
-
       - name: Audit dependencies
         run: npm audit --audit-level=high
-        continue-on-error: true  # advisory-only rollout; remove this line to make high/critical CVEs block the build
