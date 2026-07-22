@@ -1,7 +1,7 @@
 # Psychometric Test Suite (88 Questions)
 
 <div align="center">
-  <a href="https://urme-b.github.io/Psychometric/"><strong>Try the Live Demo</strong></a>
+  <a href="https://urmeo.github.io/Psychometric/"><strong>Try the Live Demo</strong></a>
 </div>
 
 A bilingual (English / French) web app for administering five standardized psychometric instruments with automated scoring, clinical interpretation, and CSV/PDF export. Fully offline, fully private.
@@ -50,7 +50,7 @@ Computed scores are mapped to clinical bands (e.g. HADS Normal / Borderline / Ab
 
 ## Demo
 
-<a href="https://github.com/urme-b/Psychometric/raw/main/images/demo.mp4">
+<a href="https://github.com/urmeo/Psychometric/raw/main/images/demo.mp4">
   <img src="images/demo.gif" alt="Demo preview -- click to watch full video" width="720" />
 </a>
 
@@ -59,7 +59,7 @@ Computed scores are mapped to clinical bands (e.g. HADS Normal / Borderline / Ab
 ## Quick Start
 
 ```bash
-git clone https://github.com/urme-b/Psychometric.git
+git clone https://github.com/urmeo/Psychometric.git
 cd Psychometric
 ```
 
@@ -111,8 +111,8 @@ Psychometrics · Anxiety · Depression · HADS · STAI · BFI-10 · Fear Questio
 
 ## Related Repos
 
-- [Multimodal-Multisensor](https://github.com/urme-b/Multimodal-Multisensor)
-- [Sensor](https://github.com/urme-b/Sensor)
+- [Multimodal-Multisensor](https://github.com/urmeo/Multimodal-Multisensor)
+- [Sensor](https://github.com/urmeo/Sensor)
 
 ## License
 
