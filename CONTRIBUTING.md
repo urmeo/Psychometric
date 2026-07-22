@@ -70,7 +70,7 @@ logical change per commit.
 
 ## Filing an issue
 
-Open an issue at https://github.com/urme-b/Psychometric/issues. For a scoring bug, please
+Open an issue at https://github.com/urmeo/Psychometric/issues. For a scoring bug, please
 include the instrument (HADS, STAI-S, STAI-T, BFI-10, FQ), the language, the item responses,
 the score you got, and the score you expected -- that maps directly onto a test case.
 
