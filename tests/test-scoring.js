@@ -416,6 +416,13 @@
       return section;
     }
 
+    // Export the current state and read back its individual-response section.
+    // Never null, so a section that failed to parse fails an assertion instead
+    // of throwing.
+    function exportDetailSection() {
+      return csvSection(parseCsv(T.buildCsv().slice(1)), C.ui.csvDetailTitle) || { header: [], rows: [] };
+    }
+
     // Distinct per-item scores across the whole battery: a dropped, duplicated
     // or mis-indexed row changes at least one subscale.
     state.tests = C.tests.slice();
@@ -445,11 +452,16 @@
     var detail = csvSection(csvRows, C.ui.csvDetailTitle);
     var summarySection = csvSection(csvRows, C.ui.csvSummaryTitle);
     assert(!!detail && !!summarySection, "CSV: summary and individual-response sections both present");
+    // Carry on with an empty section rather than dereferencing null: a missing
+    // section has to surface as failed assertions, not as a TypeError that kills
+    // the run before any result renders.
+    detail = detail || { header: [], rows: [] };
+    summarySection = summarySection || { header: [], rows: [] };
 
     assert(detail.header.join(",") === C.ui.csvHeaders, "CSV: response header row matches ui.csvHeaders");
     // "Item" is deliberately the same token in both locales.
     assert(detail.header[1] === "Item", "CSV: Item column is the second response column");
-    assert(detail.header.length === 8, "CSV: response rows carry 8 columns");
+    assert(detail.header.length === 8, "CSV: response header carries 8 columns");
     assert(detail.rows.length === exported.length, "CSV: one response row per recorded answer");
     assert(detail.rows.every(function (r) { return r.length === detail.header.length; }), "CSV: every response row has as many fields as the header");
 
@@ -475,15 +487,21 @@
     state.answers = reparsed.slice().reverse();
     var rescored = calcScores();
     var summaryRows = summarySection.rows;
+    assert(summaryRows.length > 0, "CSV: summary section is not empty");
     var mismatched = [];
     var badInterp = [];
     summaryRows.forEach(function (r) {
-      var value = rescored[r[0]];
+      var testScore = rescored[r[0]];
       // A total-score test exports ui.totalLabel in the subscale column and is
       // interpreted with a null subscale, the way buildCsv wrote it.
-      var sub = (value && typeof value === "object") ? r[1] : null;
-      if (sub) value = value[sub];
-      if (typeof value !== "number" || T.formatScoreValue(value) !== r[2]) {
+      var isSubscale = !!testScore && typeof testScore === "object";
+      var sub = isSubscale ? r[1] : null;
+      var value = isSubscale ? testScore[sub] : testScore;
+      // Compare against the formatting buildCsv actually applies per row type
+      // (formatScoreValue for a subscale, raw for a total, matching the on-screen
+      // table) instead of relying on every total happening to be an integer.
+      var expected = isSubscale ? T.formatScoreValue(value) : String(value);
+      if (typeof value !== "number" || expected !== r[2]) {
         mismatched.push(r[0] + "/" + r[1] + " exported " + r[2] + ", re-scored " + value);
       } else if (getInterp(r[0], sub, value) !== r[3]) {
         // Guard the label too: a re-analysis reads it, and a label that
@@ -491,7 +509,6 @@
         badInterp.push(r[0] + "/" + r[1] + " exported " + r[3]);
       }
     });
-    assert(summaryRows.length > 0, "CSV: summary section is not empty");
     assert(mismatched.length === 0, "CSV round trip: re-scored responses reproduce every exported summary row" +
       (mismatched.length ? " — " + mismatched.join("; ") : ""));
     assert(badInterp.length === 0, "CSV round trip: every exported interpretation matches its re-scored value" +
@@ -503,9 +520,22 @@
     state.answers = [1, 2, 3].map(function (n) {
       return { test: "HADS", question: "legacy item " + n, answer: "", score: 0, time: 1, questionStartTime: "", answerTime: "" };
     });
-    var legacy = csvSection(parseCsv(T.buildCsv().slice(1)), C.ui.csvDetailTitle);
+    var legacy = exportDetailSection();
     assert(legacy.rows.map(function (r) { return r[1]; }).join(",") === "1,2,3",
       "CSV: answers stored without an item index fall back to their position in the test");
+
+    // Same restored-session problem one field over: an answer that was saved
+    // without timing must cost that one field, not the whole export.
+    state.answers = [{ test: "HADS", questionIndex: 1, question: "no timing", answer: "", score: 0, questionStartTime: "", answerTime: "" }];
+    var untimed = exportDetailSection();
+    assert(untimed.rows.length === 1 && untimed.rows[0][5] === "",
+      "CSV: an answer with no recorded time exports a blank time rather than failing the export");
+
+    // Nothing answered: still a well-formed file with a header and no rows.
+    state.answers = [];
+    var emptyExport = exportDetailSection();
+    assert(emptyExport.header.join(",") === C.ui.csvHeaders && emptyExport.rows.length === 0,
+      "CSV: an export with no answers still writes the response header and no rows");
 
     // Render
     renderResults();

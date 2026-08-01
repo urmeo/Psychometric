@@ -639,7 +639,9 @@
         csvEscape(a.question),
         csvEscape(a.answer),
         csvEscape(a.score),
-        csvEscape(a.time.toFixed(2)),
+        // Same restored-session caution as the item number: an answer saved
+        // without timing costs one blank field, not the whole export.
+        csvEscape(typeof a.time === "number" && isFinite(a.time) ? a.time.toFixed(2) : ""),
         csvEscape(a.questionStartTime),
         csvEscape(a.answerTime),
       ].join(",") + "\n";
