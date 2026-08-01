@@ -50,7 +50,7 @@ window.CONFIG = {
     csvSummaryTitle: "--- Scores R\u00e9sum\u00e9s ---",
     csvSummaryHeaders: "\u00c9chelle,Sous-\u00e9chelle,Score,Interpr\u00e9tation",
     csvDetailTitle: "--- R\u00e9ponses individuelles ---",
-    csvHeaders: "Test,Question,R\u00e9ponse,Score,Temps(s),D\u00e9but de question,Heure de r\u00e9ponse",
+    csvHeaders: "Test,Item,Question,R\u00e9ponse,Score,Temps(s),D\u00e9but de question,Heure de r\u00e9ponse",
     pdfTitle: "R\u00e9sultats du Test Psychom\u00e9trique",
     pdfGenerated: "G\u00e9n\u00e9r\u00e9 le :",
     pdfParticipant: "Identifiant :",

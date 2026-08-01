@@ -375,6 +375,138 @@
     assert(T.interpClass(getInterp("STAI-S", "Total", full["STAI-S"])) === "interp-abnormal", "battery: STAI-S 60 -> high anxiety");
     assert(T.interpClass(getInterp("BFI", "Openness", full.BFI.Openness)) === "", "battery: BFI trait carries no clinical color");
 
+    // ── CSV round trip: the export must re-score to its own summary ────
+    // The CSV is the artifact the tool exists to produce, so the check is the
+    // one a re-analysis actually performs: parse the individual-response rows
+    // back out of the emitted text, re-score them, and compare against the
+    // summary block that same CSV wrote.
+
+    // RFC 4180 reader: handles quoted fields, doubled quotes and embedded
+    // commas/newlines, so it reads whatever csvEscape legitimately emits.
+    function parseCsv(text) {
+      var rows = [], row = [], field = "", inQuotes = false;
+      for (var i = 0; i < text.length; i++) {
+        var ch = text.charAt(i);
+        if (inQuotes) {
+          if (ch !== '"') { field += ch; }
+          else if (text.charAt(i + 1) === '"') { field += '"'; i++; }
+          else { inQuotes = false; }
+        } else if (ch === '"') { inQuotes = true; }
+        else if (ch === ",") { row.push(field); field = ""; }
+        else if (ch === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+        else { field += ch; }
+      }
+      if (field !== "" || row.length) { row.push(field); rows.push(row); }
+      return rows;
+    }
+
+    // A section is its title row, then a header row, then rows up to the blank
+    // line that separates it from the next section.
+    function csvSection(rows, title) {
+      var start = -1;
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].length === 1 && rows[i][0] === title) { start = i; break; }
+      }
+      if (start === -1 || start + 1 >= rows.length) return null;
+      var section = { header: rows[start + 1], rows: [] };
+      for (var j = start + 2; j < rows.length; j++) {
+        if (rows[j].length === 1 && rows[j][0] === "") break;
+        section.rows.push(rows[j]);
+      }
+      return section;
+    }
+
+    // Distinct per-item scores across the whole battery: a dropped, duplicated
+    // or mis-indexed row changes at least one subscale.
+    state.tests = C.tests.slice();
+    state.participantId = "P-ROUNDTRIP";
+    state.testStartTime = new Date(Date.now() - 60000);
+    state.testEndTime = new Date();
+    var exported = [];
+    state.tests.forEach(function (t) {
+      t.questions.forEach(function (q, i) {
+        exported.push({
+          test: t.name,
+          questionIndex: i + 1,
+          question: q.q,
+          answer: q.options[i % q.options.length],
+          score: q.scores[i % q.scores.length],
+          time: 1.5,
+          questionStartTime: "2020-01-01T00:00:00.000Z",
+          answerTime: "2020-01-01T00:00:02.000Z",
+        });
+      });
+    });
+    state.answers = exported;
+
+    var csvText = T.buildCsv();
+    assert(csvText.charAt(0) === "\uFEFF", "CSV: byte-order mark present for Excel");
+    var csvRows = parseCsv(csvText.slice(1));
+    var detail = csvSection(csvRows, C.ui.csvDetailTitle);
+    var summarySection = csvSection(csvRows, C.ui.csvSummaryTitle);
+    assert(!!detail && !!summarySection, "CSV: summary and individual-response sections both present");
+
+    assert(detail.header.join(",") === C.ui.csvHeaders, "CSV: response header row matches ui.csvHeaders");
+    // "Item" is deliberately the same token in both locales.
+    assert(detail.header[1] === "Item", "CSV: Item column is the second response column");
+    assert(detail.header.length === 8, "CSV: response rows carry 8 columns");
+    assert(detail.rows.length === exported.length, "CSV: one response row per recorded answer");
+    assert(detail.rows.every(function (r) { return r.length === detail.header.length; }), "CSV: every response row has as many fields as the header");
+
+    var reparsed = detail.rows.map(function (r) {
+      return {
+        test: r[0],
+        questionIndex: Number(r[1]),
+        question: r[2],
+        answer: r[3],
+        score: Number(r[4]),
+        time: Number(r[5]),
+        questionStartTime: r[6],
+        answerTime: r[7],
+      };
+    });
+    assert(reparsed.every(function (a, i) {
+      return a.test === exported[i].test && a.questionIndex === exported[i].questionIndex &&
+             a.score === exported[i].score && a.answer === exported[i].answer;
+    }), "CSV: test, item index, answer and score survive the export unchanged");
+
+    // Reversed before re-scoring: with the item index in the file, row order
+    // carries no information, which is exactly what makes the export re-usable.
+    state.answers = reparsed.slice().reverse();
+    var rescored = calcScores();
+    var summaryRows = summarySection.rows;
+    var mismatched = [];
+    var badInterp = [];
+    summaryRows.forEach(function (r) {
+      var value = rescored[r[0]];
+      // A total-score test exports ui.totalLabel in the subscale column and is
+      // interpreted with a null subscale, the way buildCsv wrote it.
+      var sub = (value && typeof value === "object") ? r[1] : null;
+      if (sub) value = value[sub];
+      if (typeof value !== "number" || T.formatScoreValue(value) !== r[2]) {
+        mismatched.push(r[0] + "/" + r[1] + " exported " + r[2] + ", re-scored " + value);
+      } else if (getInterp(r[0], sub, value) !== r[3]) {
+        // Guard the label too: a re-analysis reads it, and a label that
+        // disagrees with its own score is a clinically misleading export.
+        badInterp.push(r[0] + "/" + r[1] + " exported " + r[3]);
+      }
+    });
+    assert(summaryRows.length > 0, "CSV: summary section is not empty");
+    assert(mismatched.length === 0, "CSV round trip: re-scored responses reproduce every exported summary row" +
+      (mismatched.length ? " — " + mismatched.join("; ") : ""));
+    assert(badInterp.length === 0, "CSV round trip: every exported interpretation matches its re-scored value" +
+      (badInterp.length ? " — " + badInterp.join("; ") : ""));
+
+    // A session saved before questionIndex existed still exports a usable Item:
+    // the answer's position within its own test, which is what the scorer uses.
+    state.tests = C.tests.filter(function (t) { return t.name === "HADS"; });
+    state.answers = [1, 2, 3].map(function (n) {
+      return { test: "HADS", question: "legacy item " + n, answer: "", score: 0, time: 1, questionStartTime: "", answerTime: "" };
+    });
+    var legacy = csvSection(parseCsv(T.buildCsv().slice(1)), C.ui.csvDetailTitle);
+    assert(legacy.rows.map(function (r) { return r[1]; }).join(",") === "1,2,3",
+      "CSV: answers stored without an item index fall back to their position in the test");
+
     // Render
     renderResults();
   }

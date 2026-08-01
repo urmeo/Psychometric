@@ -582,58 +582,78 @@
   // ── Export: CSV ────────────────────────────────────────────────────
 
   /**
-   * Generate and trigger download of a UTF-8 CSV file containing individual
-   * answers and a summary scores section. Includes a BOM for Excel compatibility.
+   * Build the entire CSV export as text: session info, summary scores, then one
+   * row per individual response. No DOM and no download, so the exact content
+   * the download writes can be parsed and re-scored by the tests.
+   *
+   * Response rows carry the item number scoring keys on, which makes an export
+   * re-analysable without parsing item numbers out of localized question prose.
+   *
+   * @returns {string} CSV text, BOM-prefixed for Excel compatibility
+   */
+  function buildCsv() {
+    var csv = "\uFEFF";
+    var totalTime = sessionMinutes(2);
+    var now = new Date();
+    var date = now.getFullYear() + "-" + ("0" + (now.getMonth() + 1)).slice(-2) + "-" + ("0" + now.getDate()).slice(-2);
+
+    // ── Section 1: Session Info ──
+    csv += ui.csvSessionTitle + "\n";
+    csv += ui.csvParticipant + "," + csvEscape(state.participantId || "N/A") + "\n";
+    csv += ui.csvDate + "," + csvEscape(date) + "\n";
+    csv += ui.csvDuration + "," + csvEscape(totalTime) + "\n";
+    csv += ui.csvTestsCompleted + "," + csvEscape(state.tests.map(function (t) { return t.name; }).join("; ")) + "\n";
+
+    // ── Section 2: Summary Scores ──
+    csv += "\n" + ui.csvSummaryTitle + "\n";
+    csv += ui.csvSummaryHeaders + "\n";
+    var summary = calculateSummaryScores();
+    Object.keys(summary).forEach(function (testName) {
+      var score = summary[testName];
+      if (typeof score === "object") {
+        Object.keys(score).forEach(function (sub) {
+          var val = score[sub];
+          var display = formatScoreValue(val);
+          var interp = getInterpretation(testName, sub, val);
+          csv += [csvEscape(testName), csvEscape(sub), csvEscape(display), csvEscape(interp)].join(",") + "\n";
+        });
+      } else {
+        var interp = getInterpretation(testName, null, score);
+        csv += [csvEscape(testName), csvEscape(ui.totalLabel), csvEscape(score), csvEscape(interp)].join(",") + "\n";
+      }
+    });
+
+    // ── Section 3: Individual Responses ──
+    csv += "\n" + ui.csvDetailTitle + "\n";
+    csv += ui.csvHeaders + "\n";
+    // The Item column resolves exactly the way calculateSummaryScores does — the
+    // recorded questionIndex, falling back to the answer's position within its
+    // own test for sessions saved before questionIndex existed — so the number
+    // written to the file is always the one the summary section was scored from.
+    var itemCounts = {};
+    state.answers.forEach(function (a) {
+      itemCounts[a.test] = (itemCounts[a.test] || 0) + 1;
+      csv += [
+        csvEscape(a.test),
+        csvEscape(a.questionIndex != null ? a.questionIndex : itemCounts[a.test]),
+        csvEscape(a.question),
+        csvEscape(a.answer),
+        csvEscape(a.score),
+        csvEscape(a.time.toFixed(2)),
+        csvEscape(a.questionStartTime),
+        csvEscape(a.answerTime),
+      ].join(",") + "\n";
+    });
+
+    return csv;
+  }
+
+  /**
+   * Generate and trigger download of the UTF-8 CSV file built by buildCsv().
    */
   function generateCSV() {
     try {
-      var csv = "\uFEFF";
-      var totalTime = sessionMinutes(2);
-      var now = new Date();
-      var date = now.getFullYear() + "-" + ("0" + (now.getMonth() + 1)).slice(-2) + "-" + ("0" + now.getDate()).slice(-2);
-
-      // ── Section 1: Session Info ──
-      csv += ui.csvSessionTitle + "\n";
-      csv += ui.csvParticipant + "," + csvEscape(state.participantId || "N/A") + "\n";
-      csv += ui.csvDate + "," + csvEscape(date) + "\n";
-      csv += ui.csvDuration + "," + csvEscape(totalTime) + "\n";
-      csv += ui.csvTestsCompleted + "," + csvEscape(state.tests.map(function (t) { return t.name; }).join("; ")) + "\n";
-
-      // ── Section 2: Summary Scores ──
-      csv += "\n" + ui.csvSummaryTitle + "\n";
-      csv += ui.csvSummaryHeaders + "\n";
-      var summary = calculateSummaryScores();
-      Object.keys(summary).forEach(function (testName) {
-        var score = summary[testName];
-        if (typeof score === "object") {
-          Object.keys(score).forEach(function (sub) {
-            var val = score[sub];
-            var display = formatScoreValue(val);
-            var interp = getInterpretation(testName, sub, val);
-            csv += [csvEscape(testName), csvEscape(sub), csvEscape(display), csvEscape(interp)].join(",") + "\n";
-          });
-        } else {
-          var interp = getInterpretation(testName, null, score);
-          csv += [csvEscape(testName), csvEscape(ui.totalLabel), csvEscape(score), csvEscape(interp)].join(",") + "\n";
-        }
-      });
-
-      // ── Section 3: Individual Responses ──
-      csv += "\n" + ui.csvDetailTitle + "\n";
-      csv += ui.csvHeaders + "\n";
-      state.answers.forEach(function (a) {
-        csv += [
-          csvEscape(a.test),
-          csvEscape(a.question),
-          csvEscape(a.answer),
-          csvEscape(a.score),
-          csvEscape(a.time.toFixed(2)),
-          csvEscape(a.questionStartTime),
-          csvEscape(a.answerTime),
-        ].join(",") + "\n";
-      });
-
-      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var blob = new Blob([buildCsv()], { type: "text/csv;charset=utf-8;" });
       var link = document.createElement("a");
       var url = URL.createObjectURL(blob);
       link.setAttribute("href", url);
@@ -909,6 +929,7 @@
     window.__TEST__.getInterpretation = getInterpretation;
     window.__TEST__.interpClass = interpClass;
     window.__TEST__.csvEscape = csvEscape;
+    window.__TEST__.buildCsv = buildCsv;
     window.__TEST__.formatScoreValue = formatScoreValue;
     window.__TEST__.validateConfig = validateConfig;
     window.__TEST__.state = state;

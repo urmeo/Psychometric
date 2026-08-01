@@ -48,7 +48,7 @@ window.CONFIG = {
     csvSummaryTitle: "--- Summary Scores ---",
     csvSummaryHeaders: "Scale,Subscale,Score,Interpretation",
     csvDetailTitle: "--- Individual Responses ---",
-    csvHeaders: "Test,Question,Answer,Score,Time(s),Question Start Time,Answer Time",
+    csvHeaders: "Test,Item,Question,Answer,Score,Time(s),Question Start Time,Answer Time",
     pdfTitle: "Psychometric Test Results",
     pdfGenerated: "Generated:",
     pdfParticipant: "Participant ID:",
