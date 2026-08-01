@@ -171,6 +171,53 @@
   }
 
   /**
+   * Audit the recorded item set of every selected test: each question index
+   * 1..questions.length must appear exactly once among that test's answers,
+   * and nothing else may.
+   *
+   * Kept deliberately separate from calculateSummaryScores(), which sums
+   * whatever answers exist and must keep its return shape. A session resumed
+   * from hand-edited or corrupted localStorage can carry missing, duplicated,
+   * or out-of-range questionIndex values; the sum still succeeds, so a
+   * clinical band would otherwise be printed over an item set that never
+   * justified it.
+   *
+   * An answer with no questionIndex fails the audit too: summation falls back
+   * to array position for those, which is unverifiable.
+   *
+   * @returns {Object<string, {answered: number, expected: number, complete: boolean}>}
+   *   Map of test name to its item-set verdict. `answered` counts the indices
+   *   recorded exactly once — a duplicated item is not a usable answer.
+   */
+  function auditItemSet() {
+    var audit = {};
+    state.tests.forEach(function (test) {
+      var expected = test.questions.length;
+      var counts = [];
+      var i;
+      for (i = 0; i <= expected; i++) counts[i] = 0;
+
+      var extraneous = false;
+      state.answers.forEach(function (a) {
+        if (a.test !== test.name) return;
+        var idx = a.questionIndex;
+        if (!isInt(idx) || idx < 1 || idx > expected) { extraneous = true; return; }
+        counts[idx]++;
+      });
+
+      var answered = 0;
+      for (i = 1; i <= expected; i++) if (counts[i] === 1) answered++;
+
+      audit[test.name] = {
+        answered: answered,
+        expected: expected,
+        complete: !extraneous && answered === expected,
+      };
+    });
+    return audit;
+  }
+
+  /**
    * Look up a clinical interpretation label for a given score.
    *
    * Searches CONFIG.thresholds[testName] for a matching range. Falls back to
@@ -217,6 +264,44 @@
     if (l.indexOf("normal") !== -1 || l.indexOf("low") !== -1 || l.indexOf("mild") !== -1 ||
         l.indexOf("faible") !== -1 || l.indexOf("l\u00e9ger") !== -1) return "interp-normal";
     return "";
+  }
+
+  /**
+   * Render the notice that replaces a clinical band when a test's item set
+   * fails auditItemSet(). Substitutes the counts into the localized template
+   * so each language keeps its own word order.
+   *
+   * @param {{answered: number, expected: number}} verdict - One auditItemSet() entry
+   * @returns {string}
+   */
+  function incompleteLabel(verdict) {
+    return ui.incompleteItems
+      .replace("{answered}", String(verdict.answered))
+      .replace("{expected}", String(verdict.expected));
+  }
+
+  /**
+   * Resolve the interpretation cell for one score row: the clinical band and
+   * its severity class, or — when the test's item set failed the audit — the
+   * "incomplete" notice with no severity class at all.
+   *
+   * Shared by the table, CSV and PDF so a suppressed band cannot reappear in
+   * one of the three renderings.
+   *
+   * @param {Object<string, {answered: number, expected: number, complete: boolean}>} audit - auditItemSet() result
+   * @param {string} testName - Test identifier
+   * @param {string|null} subScale - Subscale or trait name, or null for total-score tests
+   * @param {number} score - The computed score to classify
+   * @returns {{label: string, cls: string}} Cell text and its severity class ("" when suppressed)
+   */
+  function interpretationCell(audit, testName, subScale, score) {
+    var verdict = audit[testName];
+    // Fail closed, the same way an out-of-range score does: no verdict and no
+    // verified item set both mean there is no band to print.
+    if (!verdict) return { label: "", cls: "" };
+    if (!verdict.complete) return { label: incompleteLabel(verdict), cls: "" };
+    var label = getInterpretation(testName, subScale, score);
+    return { label: label, cls: interpClass(label) };
   }
 
   // ── Config integrity ─────────────────────────────────────────────
@@ -538,32 +623,31 @@
     table.appendChild(thead);
 
     var tbody = el("tbody");
+    var audit = auditItemSet();
     Object.keys(summary).forEach(function (testName) {
       var score = summary[testName];
       if (typeof score === "object") {
         Object.keys(score).forEach(function (sub) {
           var val = score[sub];
-          var interp = getInterpretation(testName, sub, val);
+          var cell = interpretationCell(audit, testName, sub, val);
           var display = formatScoreValue(val);
           var row = el("tr");
           row.appendChild(el("td", { text: testName }));
           row.appendChild(el("td", { text: sub }));
           row.appendChild(el("td", { text: display }));
-          var interpTd = el("td", { text: interp });
-          var cls = interpClass(interp);
-          if (cls) addClass(interpTd, cls);
+          var interpTd = el("td", { text: cell.label });
+          if (cell.cls) addClass(interpTd, cell.cls);
           row.appendChild(interpTd);
           tbody.appendChild(row);
         });
       } else {
-        var interp = getInterpretation(testName, null, score);
+        var totalCell = interpretationCell(audit, testName, null, score);
         var row = el("tr");
         row.appendChild(el("td", { text: testName }));
         row.appendChild(el("td", { text: ui.totalLabel }));
         row.appendChild(el("td", { text: String(score) }));
-        var interpTd = el("td", { text: interp });
-        var cls = interpClass(interp);
-        if (cls) addClass(interpTd, cls);
+        var interpTd = el("td", { text: totalCell.label });
+        if (totalCell.cls) addClass(interpTd, totalCell.cls);
         row.appendChild(interpTd);
         tbody.appendChild(row);
       }
@@ -603,18 +687,19 @@
       csv += "\n" + ui.csvSummaryTitle + "\n";
       csv += ui.csvSummaryHeaders + "\n";
       var summary = calculateSummaryScores();
+      var audit = auditItemSet();
       Object.keys(summary).forEach(function (testName) {
         var score = summary[testName];
         if (typeof score === "object") {
           Object.keys(score).forEach(function (sub) {
             var val = score[sub];
             var display = formatScoreValue(val);
-            var interp = getInterpretation(testName, sub, val);
-            csv += [csvEscape(testName), csvEscape(sub), csvEscape(display), csvEscape(interp)].join(",") + "\n";
+            var cell = interpretationCell(audit, testName, sub, val);
+            csv += [csvEscape(testName), csvEscape(sub), csvEscape(display), csvEscape(cell.label)].join(",") + "\n";
           });
         } else {
-          var interp = getInterpretation(testName, null, score);
-          csv += [csvEscape(testName), csvEscape(ui.totalLabel), csvEscape(score), csvEscape(interp)].join(",") + "\n";
+          var totalCell = interpretationCell(audit, testName, null, score);
+          csv += [csvEscape(testName), csvEscape(ui.totalLabel), csvEscape(score), csvEscape(totalCell.label)].join(",") + "\n";
         }
       });
 
@@ -683,6 +768,7 @@
 
       doc.setFontSize(12);
       var summary = calculateSummaryScores();
+      var audit = auditItemSet();
       doc.text(ui.pdfSummary, 10, yPos);
       yPos += 8;
 
@@ -695,14 +781,14 @@
           yPos += 6;
           Object.keys(score).forEach(function (sub) {
             var val = score[sub];
-            var interp = getInterpretation(testName, sub, val);
-            var label = interp ? " (" + interp + ")" : "";
+            var cell = interpretationCell(audit, testName, sub, val);
+            var label = cell.label ? " (" + cell.label + ")" : "";
             doc.text("  - " + sub + ": " + formatScoreValue(val) + label, 14, yPos);
             yPos += 6;
           });
         } else {
-          var interp = getInterpretation(testName, null, score);
-          var label = interp ? " (" + interp + ")" : "";
+          var totalCell = interpretationCell(audit, testName, null, score);
+          var label = totalCell.label ? " (" + totalCell.label + ")" : "";
           doc.text(testName + " " + ui.pdfScore + " " + formatScoreValue(score) + label, 10, yPos);
           yPos += 6;
         }
@@ -906,8 +992,10 @@
   // ── Test hook ─────────────────────────────────────────────────────
   if (window.__TEST__) {
     window.__TEST__.calculateSummaryScores = calculateSummaryScores;
+    window.__TEST__.auditItemSet = auditItemSet;
     window.__TEST__.getInterpretation = getInterpretation;
     window.__TEST__.interpClass = interpClass;
+    window.__TEST__.interpretationCell = interpretationCell;
     window.__TEST__.csvEscape = csvEscape;
     window.__TEST__.formatScoreValue = formatScoreValue;
     window.__TEST__.validateConfig = validateConfig;

@@ -178,6 +178,104 @@
     assert(s.HADS.Anxiety === (1 + 3 + 5 + 7 + 9 + 11 + 13), "HADS scoring follows questionIndex even when answers are shuffled");
     assert(s.HADS.Depression === (2 + 4 + 6 + 8 + 10 + 12 + 14), "HADS Depression follows questionIndex when shuffled");
 
+    // ── Item-set audit ──────────────────────────────────────────────
+    // calculateSummaryScores sums whatever answers exist, so a session resumed
+    // from hand-edited or corrupted localStorage can produce a confident band
+    // over an item set that never justified it. auditItemSet is the separate
+    // check that must catch it; these assertions prove the sum still succeeds
+    // (unchanged return shape) while the audit fails.
+    var auditItems = T.auditItemSet;
+    var cellFor = T.interpretationCell;
+
+    state.tests = C.tests.filter(function (t) { return t.name === "HADS"; });
+
+    // Complete item set: audits clean, band survives.
+    state.answers = mockAnswers("HADS", 3);
+    var audit = auditItems();
+    assert(audit.HADS.complete === true, "auditItemSet: a full HADS item set is complete");
+    assert(audit.HADS.answered === 14 && audit.HADS.expected === 14, "auditItemSet: reports 14 of 14 items");
+
+    // Order is not the property under test — a shuffled but complete set passes.
+    state.answers = mockAnswers("HADS", 3).reverse();
+    assert(auditItems().HADS.complete === true, "auditItemSet: answer order does not affect completeness");
+
+    // MISSING items: HADS Anxiety built from 5 of its 7 items.
+    state.answers = mockAnswers("HADS", 3).filter(function (a) {
+      return a.questionIndex !== 5 && a.questionIndex !== 9;
+    });
+    var auditShort = auditItems();
+    assert(auditShort.HADS.complete === false, "auditItemSet: missing items fail the audit");
+    assert(auditShort.HADS.answered === 12, "auditItemSet: missing items counted as 12 of 14");
+    s = calcScores();
+    assert(s.HADS.Anxiety === 15, "missing items: the sum still succeeds (5 of 7 anxiety items x 3)");
+    assert(getInterp("HADS", "Anxiety", s.HADS.Anxiety) !== "", "missing items: the partial total still resolves to a band");
+    var shortCell = cellFor(auditShort, "HADS", "Anxiety", s.HADS.Anxiety);
+    assert(shortCell.cls === "", "missing items: no interp-* class is applied");
+    assert(shortCell.label !== getInterp("HADS", "Anxiety", s.HADS.Anxiety), "missing items: the clinical band is suppressed");
+    assert(shortCell.label.indexOf("12") !== -1 && shortCell.label.indexOf("14") !== -1, "missing items: the notice carries 12 of 14");
+
+    // DUPLICATED items, array length preserved — a bare length check misses this.
+    var dup = mockAnswers("HADS", 3);
+    dup[8] = { test: "HADS", questionIndex: 3, question: dup[2].question, answer: "", score: 3, time: 1, questionStartTime: "", answerTime: "" };
+    state.answers = dup;
+    var auditDup = auditItems();
+    assert(state.answers.length === 14, "duplicated items: the answer count still looks right");
+    assert(auditDup.HADS.complete === false, "auditItemSet: a duplicated index fails the audit");
+    assert(auditDup.HADS.answered === 12, "auditItemSet: duplicated index and its lost item both drop out (12 of 14)");
+    // Item 3 counted twice exactly offsets item 9 lost, so the subscale total is
+    // indistinguishable from a complete set — only the audit can tell.
+    s = calcScores();
+    assert(s.HADS.Anxiety === 21, "duplicated items: the sum matches a complete set exactly");
+    var dupCell = cellFor(auditDup, "HADS", "Anxiety", s.HADS.Anxiety);
+    assert(dupCell.cls === "", "duplicated items: no interp-* class is applied");
+    assert(dupCell.label !== getInterp("HADS", "Anxiety", s.HADS.Anxiety), "duplicated items: the clinical band is suppressed");
+
+    // A duplicate appended on top of a complete set is still not a verified set.
+    var dupExtra = mockAnswers("HADS", 3);
+    dupExtra.push(dupExtra[2]);
+    state.answers = dupExtra;
+    assert(auditItems().HADS.complete === false, "auditItemSet: an extra copy of an answered item fails the audit");
+
+    // Out-of-range index: harmless to a subscale sum, but a "total" test adds it.
+    state.tests = C.tests.filter(function (t) { return t.name === "STAI-S"; });
+    var oor = mockAnswers("STAI-S", 4);
+    oor[0].questionIndex = 99;
+    state.answers = oor;
+    var auditOor = auditItems();
+    assert(auditOor["STAI-S"].complete === false, "auditItemSet: an out-of-range index fails the audit");
+    assert(auditOor["STAI-S"].answered === 19, "auditItemSet: out-of-range index counted as 19 of 20");
+    s = calcScores();
+    assert(s["STAI-S"] === 80, "out-of-range index: the total still sums it in");
+    assert(cellFor(auditOor, "STAI-S", null, s["STAI-S"]).cls === "", "out-of-range index: no interp-* class is applied");
+
+    // Trait-average divides by the CONFIG item count, not by the items actually
+    // answered, so one lost item halves a two-item BFI trait mean.
+    state.tests = C.tests.filter(function (t) { return t.name === "BFI"; });
+    state.answers = mockAnswers("BFI", 4).filter(function (a) { return a.questionIndex !== 6; });
+    var auditBfi = auditItems();
+    assert(auditBfi.BFI.complete === false, "auditItemSet: a missing BFI item fails the audit");
+    assert(auditBfi.BFI.answered === 9 && auditBfi.BFI.expected === 10, "auditItemSet: reports 9 of 10 BFI items");
+    s = calcScores();
+    assert(approxEqual(s.BFI.Extraversion, 2.0), "missing BFI item: trait mean still divides by the full item count");
+    assert(cellFor(auditBfi, "BFI", "Extraversion", s.BFI.Extraversion).label !== getInterp("BFI", "Extraversion", s.BFI.Extraversion), "missing BFI item: the deflated trait band is suppressed");
+
+    // No questionIndex at all (a save written before item ids): summation falls
+    // back to array position, which cannot be verified — fail closed.
+    state.tests = C.tests.filter(function (t) { return t.name === "STAI-S"; });
+    var noIdx = mockAnswers("STAI-S", 4).map(function (a) {
+      return { test: a.test, question: a.question, answer: "", score: a.score, time: 1, questionStartTime: "", answerTime: "" };
+    });
+    state.answers = noIdx;
+    assert(auditItems()["STAI-S"].complete === false, "auditItemSet: answers with no questionIndex fail the audit");
+
+    // A verified item set keeps its band and its colour — the audit must not
+    // suppress anything on the happy path.
+    state.tests = C.tests.filter(function (t) { return t.name === "HADS"; });
+    state.answers = mockAnswers("HADS", 3);
+    var fullCell = cellFor(auditItems(), "HADS", "Anxiety", 21);
+    assert(fullCell.label === getInterp("HADS", "Anxiety", 21), "verified item set: the clinical band is printed");
+    assert(fullCell.cls === "interp-abnormal", "verified item set: the severity colour survives");
+
     // ── Config integrity tests ──────────────────────────────────────
     function clone(o) { return JSON.parse(JSON.stringify(o)); }
     assert(T.validateConfig(C).length === 0, "validateConfig: live config has no structural problems");

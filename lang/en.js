@@ -39,6 +39,9 @@ window.CONFIG = {
     colScore: "Score",
     colInterpretation: "Interpretation",
     totalLabel: "Total",
+    // Replaces the clinical band when the recorded item set does not verify.
+    // {answered} / {expected} are substituted at render time.
+    incompleteItems: "incomplete — {answered} of {expected} items",
     resultsTableCaption: "Summary of scores and clinical interpretations",
     csvSessionTitle: "--- Session Information ---",
     csvParticipant: "Participant ID",
