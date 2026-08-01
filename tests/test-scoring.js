@@ -236,6 +236,39 @@
     state.answers = dupExtra;
     assert(auditItems().HADS.complete === false, "auditItemSet: an extra copy of an answered item fails the audit");
 
+    // Every item present exactly once, plus an answer belonging to no item: the
+    // count is not what is wrong here, so the notice must not read "14 of 14".
+    var withStray = mockAnswers("HADS", 3);
+    withStray.push({ test: "HADS", questionIndex: 99, question: "", answer: "", score: 3, time: 1, questionStartTime: "", answerTime: "" });
+    state.answers = withStray;
+    var auditStray = auditItems();
+    assert(auditStray.HADS.complete === false, "auditItemSet: a full set plus an unattributable answer fails the audit");
+    assert(auditStray.HADS.answered === 14, "auditItemSet: the stray answer leaves the item count at 14 of 14");
+    var strayCell = cellFor(auditStray, "HADS", "Anxiety", 21);
+    assert(strayCell.cls === "", "stray answer: no interp-* class is applied");
+    assert(strayCell.label === C.ui.unverifiedItems, "stray answer: the notice reports an unverified set, not a short one");
+    assert(strayCell.label.indexOf("14") === -1, "stray answer: the notice carries no self-contradicting count");
+
+    // A locale that has not been given these strings must fall back to a blank
+    // cell. The band still goes away; a missing translation must not take the
+    // whole results screen down with a TypeError, so a throw here is a failure.
+    var savedIncomplete = C.ui.incompleteItems;
+    var savedUnverified = C.ui.unverifiedItems;
+    var bareCell;
+    try {
+      delete C.ui.incompleteItems;
+      delete C.ui.unverifiedItems;
+      state.answers = mockAnswers("HADS", 3).filter(function (a) { return a.questionIndex !== 5; });
+      bareCell = cellFor(auditItems(), "HADS", "Anxiety", 18);
+    } catch (e) {
+      bareCell = null;
+    } finally {
+      C.ui.incompleteItems = savedIncomplete;
+      C.ui.unverifiedItems = savedUnverified;
+    }
+    assert(bareCell !== null, "missing locale notice: rendering the cell does not throw");
+    assert(bareCell && bareCell.label === "" && bareCell.cls === "", "missing locale notice: the cell falls back to blank");
+
     // Out-of-range index: harmless to a subscale sum, but a "total" test adds it.
     state.tests = C.tests.filter(function (t) { return t.name === "STAI-S"; });
     var oor = mockAnswers("STAI-S", 4);
@@ -275,6 +308,43 @@
     var fullCell = cellFor(auditItems(), "HADS", "Anxiety", 21);
     assert(fullCell.label === getInterp("HADS", "Anxiety", 21), "verified item set: the clinical band is printed");
     assert(fullCell.cls === "interp-abnormal", "verified item set: the severity colour survives");
+
+    // ── The table renderer must route through the audit ──────────────
+    // interpretationCell is shared by the table, CSV and PDF, but only the
+    // table can be driven from here. Asserting the helper alone would leave a
+    // renderer free to call getInterpretation directly again and stay green.
+    var resultsArea = document.getElementById("results-area");
+    function interpCells() {
+      var rows = resultsArea.querySelectorAll("table tbody tr");
+      var cells = [];
+      for (var r = 0; r < rows.length; r++) {
+        var tds = rows[r].querySelectorAll("td");
+        cells.push({ text: tds[3].textContent, cls: tds[3].className });
+      }
+      return cells;
+    }
+    function everyCell(cells, fn) { return cells.length > 0 && cells.every(fn); }
+
+    state.testStartTime = new Date();
+    state.answers = mockAnswers("HADS", 3).filter(function (a) { return a.questionIndex !== 5; });
+    T.displayResults(calcScores());
+    var shortRows = interpCells();
+    var expectedNotice = C.ui.incompleteItems.replace("{answered}", "13").replace("{expected}", "14");
+    assert(shortRows.length === 2, "results table: one row per HADS subscale");
+    assert(everyCell(shortRows, function (c) { return c.cls === ""; }), "results table: a failed audit leaves no interp-* class behind");
+    assert(everyCell(shortRows, function (c) { return c.text === expectedNotice; }), "results table: every subscale row carries the incomplete notice");
+
+    state.answers = mockAnswers("HADS", 3);
+    T.displayResults(calcScores());
+    var verifiedRows = interpCells();
+    assert(verifiedRows.length === 2, "results table: a verified set still renders one row per subscale");
+    assert(everyCell(verifiedRows, function (c) { return c.cls === "interp-abnormal"; }), "results table: a verified set keeps its severity colour");
+    assert(verifiedRows[0].text === getInterp("HADS", "Anxiety", 21), "results table: a verified set prints the clinical band");
+
+    // Leave the page as the renderer found it, so the visible test report below
+    // is not preceded by a stray results table when opened in a browser.
+    resultsArea.innerHTML = "";
+    resultsArea.className = "hidden";
 
     // ── Config integrity tests ──────────────────────────────────────
     function clone(o) { return JSON.parse(JSON.stringify(o)); }

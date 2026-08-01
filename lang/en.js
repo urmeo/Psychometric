@@ -39,9 +39,12 @@ window.CONFIG = {
     colScore: "Score",
     colInterpretation: "Interpretation",
     totalLabel: "Total",
-    // Replaces the clinical band when the recorded item set does not verify.
+    // Replaces the clinical band when the recorded item set is short.
     // {answered} / {expected} are substituted at render time.
     incompleteItems: "incomplete — {answered} of {expected} items",
+    // Replaces it when every item is present but the record also carries an
+    // answer that belongs to no item, so the set still does not verify.
+    unverifiedItems: "unverified — extra answers recorded",
     resultsTableCaption: "Summary of scores and clinical interpretations",
     csvSessionTitle: "--- Session Information ---",
     csvParticipant: "Participant ID",

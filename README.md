@@ -38,6 +38,8 @@ Each instrument uses one of three scoring modes, defined in `lang/*.js`:
 
 Computed scores are mapped to clinical bands (e.g. HADS Normal / Borderline / Abnormal) through per-subscale thresholds and colour-coded in the results table. Item mapping, reverse-scoring direction, and band boundaries are all unit-tested.
 
+A band is only printed over an item set that justifies it. Every test's answers are audited first -- each item must appear exactly once, and nothing else may -- so a session restored from a hand-edited or corrupted save cannot produce a confident label from a partial, duplicated, or unattributable record. When the audit fails, the table, CSV and PDF all show a notice in place of the band.
+
 ## Screenshots
 
 | Participant Setup | Test In Progress |

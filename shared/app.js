@@ -62,9 +62,11 @@
    *   currentTestIndex: number,
    *   currentQuestionIndex: number,
    *   totalQuestions: number,
-   *   answers: Array<{test:string, question:string, answer:string, score:number, time:number, questionStartTime:string, answerTime:string}>,
+   *   answers: Array<{test:string, questionIndex:number, question:string, answer:string, score:number, time:number, questionStartTime:string, answerTime:string}>,
    *   testStartTime: Date|null,
+   *   testEndTime: Date|null,
    *   questionStartTime: Date|null,
+   *   resultsExported: boolean,
    *   testInProgress: boolean,
    *   participantId: string,
    *   tests: Array<Object>
@@ -194,19 +196,17 @@
     state.tests.forEach(function (test) {
       var expected = test.questions.length;
       var counts = [];
-      var i;
-      for (i = 0; i <= expected; i++) counts[i] = 0;
 
       var extraneous = false;
       state.answers.forEach(function (a) {
         if (a.test !== test.name) return;
         var idx = a.questionIndex;
         if (!isInt(idx) || idx < 1 || idx > expected) { extraneous = true; return; }
-        counts[idx]++;
+        counts[idx] = (counts[idx] || 0) + 1;
       });
 
       var answered = 0;
-      for (i = 1; i <= expected; i++) if (counts[i] === 1) answered++;
+      for (var i = 1; i <= expected; i++) if (counts[i] === 1) answered++;
 
       audit[test.name] = {
         answered: answered,
@@ -271,11 +271,22 @@
    * fails auditItemSet(). Substitutes the counts into the localized template
    * so each language keeps its own word order.
    *
+   * Two failures need two sentences. A set is usually short — items missing,
+   * or duplicated so that both copies stop counting. But it can also hold
+   * every item exactly once and still carry an answer belonging to no item at
+   * all, and reporting that as "incomplete, 14 of 14 items" would contradict
+   * itself, so it gets its own string.
+   *
+   * A locale with neither string yields "" — a blank interpretation cell, the
+   * same thing an unclassifiable score already renders as. That keeps an
+   * untranslated notice from taking the whole results screen down with it.
+   *
    * @param {{answered: number, expected: number}} verdict - One auditItemSet() entry
-   * @returns {string}
+   * @returns {string} Localized notice, or "" if this locale carries no such string
    */
-  function incompleteLabel(verdict) {
-    return ui.incompleteItems
+  function auditNotice(verdict) {
+    if (verdict.answered === verdict.expected) return ui.unverifiedItems || "";
+    return (ui.incompleteItems || "")
       .replace("{answered}", String(verdict.answered))
       .replace("{expected}", String(verdict.expected));
   }
@@ -299,7 +310,7 @@
     // Fail closed, the same way an out-of-range score does: no verdict and no
     // verified item set both mean there is no band to print.
     if (!verdict) return { label: "", cls: "" };
-    if (!verdict.complete) return { label: incompleteLabel(verdict), cls: "" };
+    if (!verdict.complete) return { label: auditNotice(verdict), cls: "" };
     var label = getInterpretation(testName, subScale, score);
     return { label: label, cls: interpClass(label) };
   }
@@ -996,6 +1007,9 @@
     window.__TEST__.getInterpretation = getInterpretation;
     window.__TEST__.interpClass = interpClass;
     window.__TEST__.interpretationCell = interpretationCell;
+    // Exposed so the suite can assert the real table renderer routes through
+    // interpretationCell, not just that the helper itself is correct.
+    window.__TEST__.displayResults = displayResults;
     window.__TEST__.csvEscape = csvEscape;
     window.__TEST__.formatScoreValue = formatScoreValue;
     window.__TEST__.validateConfig = validateConfig;
