@@ -298,7 +298,7 @@
     if (/^[=+\-@\t\r]/.test(str)) {
       str = "'" + str;
     }
-    if (str.indexOf(",") !== -1 || str.indexOf('"') !== -1 || str.indexOf("\n") !== -1) {
+    if (/[",\r\n]/.test(str)) {
       return '"' + str.replace(/"/g, '""') + '"';
     }
     return str;
@@ -761,6 +761,7 @@
         return;
       }
       state.tests = selected.map(function (i) { return allTests[i]; });
+      state.answers = [];
       state.totalQuestions = state.tests.reduce(function (acc, t) { return acc + t.questions.length; }, 0);
       state.testStartTime = new Date();
       state.testInProgress = true;
@@ -911,6 +912,7 @@
     window.__TEST__.csvEscape = csvEscape;
     window.__TEST__.formatScoreValue = formatScoreValue;
     window.__TEST__.validateConfig = validateConfig;
+    window.__TEST__.showResumeScreen = showResumeScreen;
     window.__TEST__.state = state;
   }
 

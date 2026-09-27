@@ -195,6 +195,8 @@
     assert(csvEscape("hello,world") === '"hello,world"', "csvEscape: comma wrapped in quotes");
     assert(csvEscape('say "hi"') === '"say ""hi"""', "csvEscape: quotes doubled and wrapped");
     assert(csvEscape("line1\nline2") === '"line1\nline2"', "csvEscape: newline wrapped in quotes");
+    assert(csvEscape("line1\rline2") === '"line1\rline2"', "csvEscape: carriage return wrapped in quotes");
+    assert(csvEscape("\r=1+1") === '"\'\r=1+1"', "csvEscape: carriage return guard composes with quoting");
 
     // Spreadsheet formula injection must be neutralized with a leading quote.
     assert(csvEscape("=1+1") === "'=1+1", "csvEscape: = prefix neutralized");
@@ -374,6 +376,26 @@
     assert(T.interpClass(getInterp("HADS", "Anxiety", full.HADS.Anxiety)) === "interp-abnormal", "battery: HADS Anxiety 14 -> abnormal");
     assert(T.interpClass(getInterp("STAI-S", "Total", full["STAI-S"])) === "interp-abnormal", "battery: STAI-S 60 -> high anxiety");
     assert(T.interpClass(getInterp("BFI", "Openness", full.BFI.Openness)) === "", "battery: BFI trait carries no clinical color");
+
+    var storageKey = C.storageKey;
+    C.storageKey += "-tests";
+    var staleSession = {
+      participantId: "test-session",
+      currentTestIndex: C.tests.length,
+      currentQuestionIndex: 0,
+      answers: mockAnswers("HADS", 3).slice(0, 1),
+      selectedTestNames: ["HADS"],
+      testStartTime: new Date().toISOString(),
+    };
+    T.showResumeScreen(staleSession);
+    document.getElementById("resumeBtn").click();
+    assert(!!document.getElementById("participantIdInput"), "resume: outdated test index returns to setup");
+    document.getElementById("nextBtn").click();
+    assert(state.answers.length === 0, "new session: discarded answers are not carried forward");
+    assert(calcScores().HADS.Anxiety === 0, "new session: discarded answers do not affect scores");
+    state.testInProgress = false;
+    localStorage.removeItem(C.storageKey);
+    C.storageKey = storageKey;
 
     // Render
     renderResults();
