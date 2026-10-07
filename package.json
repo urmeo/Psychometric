@@ -2,10 +2,15 @@
   "name": "psychometric",
   "private": true,
   "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
-    "test": "node scripts/run-tests.js"
+    "test": "node scripts/run-tests.js",
+    "check:vendor": "node scripts/check-vendor.js"
   },
   "devDependencies": {
-    "puppeteer": "^25.2.0"
+    "jspdf": "4.2.1",
+    "puppeteer": "25.2.0"
   }
 }

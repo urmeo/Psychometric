@@ -1,4 +1,4 @@
-/* Psychometric Test Suite — shared styles */
+/* Shared questionnaire layout. */
 :root {
   --color-primary: #007bff;
   --color-warning: #ffc107;
@@ -106,6 +106,18 @@ p {
 
 .participant-id-input {
   max-width: 300px;
+}
+
+.participant-id,
+.instrument-notice,
+.resume-prompt {
+  overflow-wrap: anywhere;
+}
+
+.instrument-notice {
+  margin-top: 16px;
+  font-size: 0.8rem;
+  line-height: 1.4;
 }
 
 #results-area h2 {

@@ -1,4 +1,4 @@
-// Psychometric Test Suite — unit tests
+// Psychometric Test Suite : unit tests
 // Works with window.__TEST__ hook exposed by shared/app.js
 (function () {
   "use strict";
@@ -35,7 +35,7 @@
   }
 
   // Wait for CONFIG and app.js to load
-  function run() {
+  async function run() {
     var C = window.CONFIG;
     var T = window.__TEST__;
 
@@ -49,18 +49,34 @@
     var getInterp = T.getInterpretation;
     var csvEscape = T.csvEscape;
 
-    // Helper to build mock answers for a test
+    function response(testName, question, index, score) {
+      var option = question.scores.indexOf(score);
+      return {
+        test: testName, questionIndex: index + 1, optionIndex: option,
+        question: question.q, answer: question.options[option], score: score, description: "",
+        time: 1,
+        questionStartTime: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+        answerTime: new Date(Date.UTC(2026, 0, 1, 0, 0, index + 1)).toISOString(),
+      };
+    }
+    function assertThrows(callback, message) {
+      var rejected = false;
+      try { callback(); } catch (error) { rejected = true; }
+      assert(rejected, message);
+    }
+
+    // Helper to build valid option identities for a test
     function mockAnswers(testName, scoreValue) {
       var test = C.tests.filter(function (t) { return t.name === testName; })[0];
       return test.questions.map(function (q, i) {
-        return { test: testName, questionIndex: i + 1, question: q.q, answer: "", score: scoreValue, time: 1, questionStartTime: "", answerTime: "" };
+        return response(testName, q, i, scoreValue);
       });
     }
 
     function mockAnswersPerItem(testName, scores) {
       var test = C.tests.filter(function (t) { return t.name === testName; })[0];
       return test.questions.map(function (q, i) {
-        return { test: testName, questionIndex: i + 1, question: q.q, answer: "", score: scores[i], time: 1, questionStartTime: "", answerTime: "" };
+        return response(testName, q, i, scores[i]);
       });
     }
 
@@ -139,9 +155,9 @@
     assert(getInterp("HADS", "Anxiety", 11) !== getInterp("HADS", "Anxiety", 10), "HADS interp: 11 differs from 10 (boundary)");
 
     // STAI
-    assert(getInterp("STAI-S", "Total", 20) !== "", "STAI-S interp: score 20 has label");
-    assert(getInterp("STAI-S", "Total", 37) !== getInterp("STAI-S", "Total", 38), "STAI-S interp: 37 vs 38 boundary");
-    assert(getInterp("STAI-S", "Total", 44) !== getInterp("STAI-S", "Total", 45), "STAI-S interp: 44 vs 45 boundary");
+    assert(getInterp("STAI-S", "Total", 20) === "", "STAI-S: raw score has no universal severity band");
+    assert(getInterp("STAI-T", "Total", 80) === "", "STAI-T: raw score has no universal severity band");
+    assert(JSON.stringify(T.scoreRange("STAI-S", "Total")) === "[20,80]", "STAI-S possible range = 20-80");
 
     // BFI
     assert(getInterp("BFI", "Openness", 1.5) !== "", "BFI interp: 1.5 has label");
@@ -162,21 +178,21 @@
     assert(getInterp("BFI", "Openness", 5.5) === "", "BFI interp: above-max -> no label");
 
     // FQ subscales
-    assert(getInterp("FQ", "Agoraphobia", 5) !== "", "FQ Agoraphobia interp: 5 has label");
-    assert(getInterp("FQ", "GlobalPhobiaRating", 1) !== "", "FQ GlobalPhobia interp: 1 has label");
+    assert(getInterp("FQ", "Agoraphobia", 5) === "", "FQ: raw score has no universal severity band");
+    assert(getInterp("FQ", "GlobalPhobiaRating", 0) === "", "FQ: no-phobia anchor is not labeled mild");
 
     // ── Position-independence: scoring follows questionIndex, not order ──
     // Answers carrying correct questionIndex but shuffled in the array must still
-    // route to the right subscale — proving scoring no longer keys off position.
+    // route to the right subscale : proving scoring no longer keys off position.
     var hadsQs = C.tests.filter(function (t) { return t.name === "HADS"; })[0].questions;
     state.tests = C.tests.filter(function (t) { return t.name === "HADS"; });
     var built = hadsQs.map(function (q, i) {
-      return { test: "HADS", questionIndex: i + 1, question: q.q, answer: "", score: i + 1, time: 1, questionStartTime: "", answerTime: "" };
+      return response("HADS", q, i, i % 4);
     });
     state.answers = built.slice().reverse();
     s = calcScores();
-    assert(s.HADS.Anxiety === (1 + 3 + 5 + 7 + 9 + 11 + 13), "HADS scoring follows questionIndex even when answers are shuffled");
-    assert(s.HADS.Depression === (2 + 4 + 6 + 8 + 10 + 12 + 14), "HADS Depression follows questionIndex when shuffled");
+    assert(s.HADS.Anxiety === built.filter(function (a) { return a.questionIndex % 2 === 1; }).reduce(function (sum, a) { return sum + a.score; }, 0), "HADS scoring follows questionIndex even when answers are shuffled");
+    assert(s.HADS.Depression === built.filter(function (a) { return a.questionIndex % 2 === 0; }).reduce(function (sum, a) { return sum + a.score; }, 0), "HADS Depression follows questionIndex when shuffled");
 
     // ── Config integrity tests ──────────────────────────────────────
     function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -195,6 +211,12 @@
     assert(csvEscape("hello,world") === '"hello,world"', "csvEscape: comma wrapped in quotes");
     assert(csvEscape('say "hi"') === '"say ""hi"""', "csvEscape: quotes doubled and wrapped");
     assert(csvEscape("line1\nline2") === '"line1\nline2"', "csvEscape: newline wrapped in quotes");
+    assert(csvEscape("line1\rline2") === '"line1\rline2"', "csvEscape: carriage return wrapped in quotes");
+    assert(csvEscape("\r=1+1") === "\"'\r=1+1\"", "csvEscape: CR guard composes with quoting");
+    assert(csvEscape("\n=1+1") === "\"'\n=1+1\"", "csvEscape: LF prefix guarded and quoted");
+    ["＝", "＋", "－", "＠"].forEach(function (prefix) {
+      assert(csvEscape(prefix + "1+1") === "'" + prefix + "1+1", "csvEscape: full-width formula prefix guarded " + prefix);
+    });
 
     // Spreadsheet formula injection must be neutralized with a leading quote.
     assert(csvEscape("=1+1") === "'=1+1", "csvEscape: = prefix neutralized");
@@ -299,7 +321,7 @@
       qs.forEach(function (q, i) { if (q.scores[0] === 4) out.push(i + 1); });
       return out;
     }
-    assert(JSON.stringify(reverseSet("STAI-S")) === JSON.stringify([1, 2, 5, 8, 10, 11, 15, 16, 19, 20]), "STAI-S reverse set matches Form Y");
+    assert(JSON.stringify(reverseSet("STAI-S")) === JSON.stringify([1, 2, 5, 8, 10, 11, 15, 16, 19, 20]), "STAI-S reverse set matches this language form");
     var expectedT = C.lang === "fr" ? [1, 3, 6, 7, 10, 13, 14, 16, 19] : [1, 6, 7, 10, 13, 16, 19];
     assert(JSON.stringify(reverseSet("STAI-T")) === JSON.stringify(expectedT), "STAI-T reverse set matches this language's form");
 
@@ -312,7 +334,7 @@
 
     // Non-uniform answers: total scoring must sum exactly, with no dropped or
     // duplicated items. (Reverse-keying itself is guarded by the reverseSet
-    // assertions above — it is applied at capture, not at summation.)
+    // assertions above : it is applied at capture, not at summation.)
     state.tests = C.tests.filter(function (t) { return t.name === "STAI-T"; });
     var mixT = staiTQs.map(function (q, i) { return q.scores[i % 4]; });
     state.answers = mockAnswersPerItem("STAI-T", mixT);
@@ -329,17 +351,12 @@
     assert(getInterp("HADS", "Anxiety", 10) === hadsR[1][2], "HADS band: 10 -> band 2");
     assert(getInterp("HADS", "Anxiety", 11) === hadsR[2][2], "HADS band: 11 -> band 3");
 
-    var staiR = C.thresholds["STAI-S"].Total.ranges;
-    assert(getInterp("STAI-S", "Total", 37) === staiR[0][2], "STAI-S band: 37 -> band 1");
-    assert(getInterp("STAI-S", "Total", 38) === staiR[1][2], "STAI-S band: 38 -> band 2");
-    assert(getInterp("STAI-S", "Total", 44) === staiR[1][2], "STAI-S band: 44 -> band 2");
-    assert(getInterp("STAI-S", "Total", 45) === staiR[2][2], "STAI-S band: 45 -> band 3");
-
-    var fqR = C.thresholds.FQ.TotalPhobia.ranges;
-    assert(getInterp("FQ", "TotalPhobia", 30) === fqR[0][2], "FQ band: 30 -> band 1");
-    assert(getInterp("FQ", "TotalPhobia", 31) === fqR[1][2], "FQ band: 31 -> band 2");
-    assert(getInterp("FQ", "TotalPhobia", 60) === fqR[1][2], "FQ band: 60 -> band 2");
-    assert(getInterp("FQ", "TotalPhobia", 61) === fqR[2][2], "FQ band: 61 -> band 3");
+    [20, 37, 38, 44, 45, 80].forEach(function (value) {
+      assert(getInterp("STAI-S", "Total", value) === "", "STAI-S raw score: no band at " + value);
+    });
+    [0, 30, 31, 60, 61, 120].forEach(function (value) {
+      assert(getInterp("FQ", "TotalPhobia", value) === "", "FQ raw score: no band at " + value);
+    });
 
     // ── Interpretation → CSS class (color coding) ─────────────────────
     // "abnormal"/"anormal" contain "normal", so the check order matters.
@@ -372,10 +389,10 @@
     assert(approxEqual(full.BFI.Openness, 4.0), "battery: BFI Openness mean = 4.0");
     assert(full.FQ.Agoraphobia === 20 && full.FQ.TotalPhobia === 60, "battery: FQ Agoraphobia = 20, TotalPhobia = 60");
     assert(T.interpClass(getInterp("HADS", "Anxiety", full.HADS.Anxiety)) === "interp-abnormal", "battery: HADS Anxiety 14 -> abnormal");
-    assert(T.interpClass(getInterp("STAI-S", "Total", full["STAI-S"])) === "interp-abnormal", "battery: STAI-S 60 -> high anxiety");
+    assert(getInterp("STAI-S", "Total", full["STAI-S"]) === "", "battery: STAI-S 60 remains a raw score");
     assert(T.interpClass(getInterp("BFI", "Openness", full.BFI.Openness)) === "", "battery: BFI trait carries no clinical color");
 
-    // Render
+    await browserRegressions(C, T, state, mockAnswers, assert, assertThrows, clone);
     renderResults();
   }
 

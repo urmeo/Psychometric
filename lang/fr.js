@@ -1,8 +1,9 @@
-// French configuration — UI strings, test data, scoring rules, thresholds
+// French UI, original questionnaire content, and scoring metadata.
 // STAI-T reverse scoring per Gauthier & Bouchard (1993): 1,3,6,7,10,13,14,16,19
 // FQ ordering per Cottraux French validation: GlobalPhobiaRating at Q24, AnxietyDepression at Q18-22
 window.CONFIG = {
   lang: "fr",
+  revision: "2026-10-06",
   storageKey: "psychometric_progress_fr",
 
   ui: {
@@ -12,11 +13,11 @@ window.CONFIG = {
     nextBtn: "Suivant",
     downloadCsvBtn: "T\u00e9l\u00e9charger CSV",
     downloadPdfBtn: "T\u00e9l\u00e9charger PDF",
-    clearDataBtn: "Effacer les donn\u00e9es enregistr\u00e9es",
-    dataCleared: "Donn\u00e9es effac\u00e9es de ce navigateur.",
+    clearDataBtn: "Effacer les données de l'application",
+    dataCleared: "Session actuelle et sessions françaises/anglaises enregistrées effacées. Les rapports téléchargés ne sont pas supprimés.",
     consent:
-      "Cette \u00e9valuation comprend des instruments psychom\u00e9triques standardis\u00e9s (HADS, STAI, BFI-10, Questionnaire des Peurs). " +
-      "Toutes les r\u00e9ponses sont trait\u00e9es localement dans votre navigateur. Aucune donn\u00e9e n\u2019est envoy\u00e9e ou stock\u00e9e sur un serveur, sauf si vous les exportez explicitement.",
+      "Réponses et identifiant restent dans ce navigateur pour reprendre. Aucun envoi. " +
+      "Effacer termine la session et supprime les données françaises/anglaises enregistrées ; les fichiers téléchargés restent.",
     participantLabel: "Identifiant du participant (optionnel) :",
     participantPlaceholder: "ex. P001",
     selectTests: "S\u00e9lectionnez les tests :",
@@ -30,8 +31,12 @@ window.CONFIG = {
     alertAnswer: "Veuillez r\u00e9pondre \u00e0 la question pour continuer.",
     alertCsvFail: "\u00c9chec de la g\u00e9n\u00e9ration CSV. Veuillez r\u00e9essayer.",
     alertPdfFail: "La biblioth\u00e8que PDF n\u2019a pas pu \u00eatre charg\u00e9e. Le fichier CSV a \u00e9t\u00e9 t\u00e9l\u00e9charg\u00e9.",
+    alertPdfEncoding: "Le PDF ne peut pas afficher certains caractères. Le texte intégral a été téléchargé au format CSV.",
     alertPdfError: "\u00c9chec de la g\u00e9n\u00e9ration du PDF. Veuillez utiliser le t\u00e9l\u00e9chargement CSV.",
-    configError: "Erreur de configuration \u2014 le test est d\u00e9sactiv\u00e9 :",
+    configError: "Erreur de configuration. Le test est désactivé :",
+    invalidSession: "La session enregistrée est incompatible ou invalide. Commencez une nouvelle session.",
+    invalidResults: "Les réponses incomplètes ou invalides ne permettent ni le calcul des scores ni l'exportation.",
+    descriptionLabel: "Description (facultative)",
     resultsHeading: "R\u00e9sultats",
     participantLabel2: "Participant :",
     durationLabel: "Dur\u00e9e :",
@@ -39,35 +44,103 @@ window.CONFIG = {
     colScale: "\u00c9chelle",
     colSubscale: "Sous-\u00e9chelle",
     colScore: "Score",
+    colRange: "Plage possible",
     colInterpretation: "Interpr\u00e9tation",
+    rawScoreLabel: "Score brut uniquement",
     totalLabel: "Total",
-    resultsTableCaption: "R\u00e9sum\u00e9 des scores et des interpr\u00e9tations cliniques",
+    resultsTableCaption: "Scores bruts et indications de dépistage",
     csvSessionTitle: "--- Informations de session ---",
     csvParticipant: "Identifiant du participant",
     csvDate: "Date",
+    csvLanguage: "Langue",
+    csvRevision: "Révision",
+    csvForm: "Formulaire",
+    csvSource: "Source",
+    csvStarted: "Début de session",
+    csvCompleted: "Fin de session",
+    csvGenerated: "Exportation générée",
+    csvDisclaimer: "Limites d'interprétation",
+    csvNotice: "Mention relative à l'instrument",
     csvDuration: "Dur\u00e9e totale (min)",
-    csvTestsCompleted: "Tests compl\u00e9t\u00e9s",
-    csvSummaryTitle: "--- Scores R\u00e9sum\u00e9s ---",
-    csvSummaryHeaders: "\u00c9chelle,Sous-\u00e9chelle,Score,Interpr\u00e9tation",
+    csvTestsCompleted: "Questionnaires terminés",
+    csvSummaryTitle: "--- Résumé des scores ---",
+    csvSummaryHeaders: "Échelle,ID de sous-échelle,Sous-échelle,Score,Plage,Interprétation",
     csvDetailTitle: "--- R\u00e9ponses individuelles ---",
-    csvHeaders: "Test,Question,R\u00e9ponse,Score,Temps(s),D\u00e9but de question,Heure de r\u00e9ponse",
-    pdfTitle: "R\u00e9sultats du Test Psychom\u00e9trique",
+    csvHeaders: "Questionnaire,ID de question,ID d'option,Question,Réponse,Description,Score,Temps(s),Début de question,Heure de réponse",
+    pdfTitle: "Résultats des questionnaires psychométriques",
     pdfGenerated: "G\u00e9n\u00e9r\u00e9 le :",
+    pdfLanguage: "Langue :",
+    pdfRevision: "Révision :",
+    pdfForm: "Formulaire :",
+    pdfSource: "Source :",
+    pdfStarted: "Début de session :",
+    pdfCompleted: "Fin de session :",
+    pdfTest: "Questionnaire :",
+    pdfQuestion: "Question :",
+    pdfDescription: "Description :",
+    pdfDisclaimer: "Limites d'interprétation :",
+    pdfNotice: "Mention relative à l'instrument :",
     pdfParticipant: "Identifiant :",
     pdfDuration: "Dur\u00e9e totale :",
-    pdfSummary: "Scores R\u00e9sum\u00e9s :",
-    pdfDetailed: "R\u00e9ponses D\u00e9taill\u00e9es :",
+    pdfSummary: "Résumé des scores :",
+    pdfDetailed: "Réponses détaillées :",
     pdfAnswer: "R\u00e9ponse :",
     pdfScore: "Score :",
     pdfTime: "Temps :",
     disclaimer:
-      "Ces r\u00e9sultats sont g\u00e9n\u00e9r\u00e9s par un outil de d\u00e9pistage et ne constituent pas un diagnostic clinique. " +
-      "Veuillez consulter un professionnel de sant\u00e9 qualifi\u00e9 pour l\u2019interpr\u00e9tation et toute d\u00e9cision clinique.",
+      "Ces scores ne constituent pas un diagnostic. Les catégories HADS relèvent du dépistage ; les descriptions BFI situent le score par rapport au point médian. " +
+      "Aucune catégorie universelle de gravité n'est appliquée ici aux scores STAI/FQ. Toute décision clinique nécessite une évaluation qualifiée.",
   },
 
   export: {
-    csvFilename: "Psychometric_Test_Results_Fr.csv",
-    pdfFilename: "Psychometric_Test_Results_Fr.pdf",
+    csvFilename: "Resultats_Psychometriques_Fr.csv",
+    pdfFilename: "Resultats_Psychometriques_Fr.pdf",
+  },
+
+  subscaleLabels: {
+    Total: "Total",
+    Anxiety: "Anxiété",
+    Depression: "Dépression",
+    Openness: "Ouverture",
+    Conscientiousness: "Conscienciosité",
+    Extraversion: "Extraversion",
+    Agreeableness: "Agréabilité",
+    Neuroticism: "Névrosisme",
+    MainPhobia: "Phobie principale",
+    TotalPhobia: "Phobie totale",
+    Agoraphobia: "Agoraphobie",
+    BloodInjuryPhobia: "Phobie du sang et des blessures",
+    SocialPhobia: "Phobie sociale",
+    GlobalPhobiaRating: "Gêne phobique globale",
+    AnxietyDepression: "Anxiété et dépression associées",
+  },
+
+  testMetadata: {
+    HADS: {
+      form: "HADS, français, 14 items",
+      source: "Zigmond et Snaith (1983) ; catégories de dépistage : Snaith (2003), doi:10.1186/1477-7525-1-29.",
+      notice: "© R. P. Snaith et A. S. Zigmond, 1983/1992/1994. Les droits de l'instrument sont distincts de la licence du logiciel.",
+    },
+    "STAI-S": {
+      form: "STAI, forme Y-1, anxiété-état, français",
+      source: "Spielberger (1983) ; Gauthier et Bouchard (1993), adaptation française de la forme Y.",
+      notice: "© 1968, 1977 Charles D. Spielberger. State-Trait Anxiety Inventory for Adults™ est une marque de Mind Garden, Inc.",
+    },
+    "STAI-T": {
+      form: "STAI, forme Y-2, anxiété-trait, français",
+      source: "Spielberger (1983) ; Gauthier et Bouchard (1993), adaptation française de la forme Y.",
+      notice: "© 1968, 1977 Charles D. Spielberger. State-Trait Anxiety Inventory for Adults™ est une marque de Mind Garden, Inc.",
+    },
+    BFI: {
+      form: "BFI-10, français, 10 items",
+      source: "Rammstedt et John (2007) ; Courtois et al. (2020), doi:10.1016/j.encep.2020.02.006.",
+      notice: "© Oliver P. John, Berkeley Personality Lab. Les droits de l'instrument sont distincts de la licence du logiciel.",
+    },
+    FQ: {
+      form: "Questionnaire des peurs, formulaire français fourni, 24 items",
+      source: "Marks et Mathews (1979) ; Cottraux, Bouvard et Messy (1987), version française.",
+      notice: "© Isaac M. Marks. Les droits de l'instrument sont distincts de la licence du logiciel.",
+    },
   },
 
   tests: [
@@ -168,7 +241,7 @@ window.CONFIG = {
       instructions:
         "FQ: Veuillez choisir un chiffre dans l\u2019\u00e9chelle ci-dessous: il permet de chiffrer \u00e0 quel point vous \u00e9vitez par peur (ou du fait de sensation ou sentiments d\u00e9sagr\u00e9ables) chacune des situations \u00e9num\u00e9r\u00e9es ci-dessous.",
       questions: [
-        { q: "1. Principale phobie que vous voulez traiter (d\u00e9crivez-la \u00e0 votre fa\u00e7on puis cotez-la de 0 \u00e0 8).", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
+        { description: true, q: "1. Principale phobie que vous voulez traiter (d\u00e9crivez-la \u00e0 votre fa\u00e7on puis cotez-la de 0 \u00e0 8).", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "2. Injections et interventions chirurgicales minimes.", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "3. Manger et boire avec les autres.", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "4. Aller dans les h\u00f4pitaux.", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
@@ -184,13 +257,13 @@ window.CONFIG = {
         { q: "14. Parler ou agir en public.", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "15. Les grands espaces vides.", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "16. Aller chez le dentiste.", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
-        { q: "17. Toute autre situation qui vous fait peur et que vous \u00e9vitez (d\u00e9crivez-la puis cotez-la de 0 \u00e0 8).", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
+        { description: true, q: "17. Toute autre situation qui vous fait peur et que vous \u00e9vitez (d\u00e9crivez-la puis cotez-la de 0 \u00e0 8).", options: ["0 - n\u2019\u00e9vite pas", "1", "2 - \u00e9vite un peu", "3", "4 - \u00e9vite souvent", "5", "6 - \u00e9vite tr\u00e8s souvent", "7", "8 - \u00e9vite toujours"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "18. Sentiment d\u2019\u00eatre malheureux ou d\u00e9prim\u00e9.", options: ["0 - ne souffre pas du tout", "1", "2 - souffre l\u00e9g\u00e8rement", "3", "4 - souffre nettement", "5", "6 - souffre beaucoup", "7", "8 - souffre extr\u00eamement"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "19. Sentiment d\u2019\u00eatre irritable ou en col\u00e8re.", options: ["0 - ne souffre pas du tout", "1", "2 - souffre l\u00e9g\u00e8rement", "3", "4 - souffre nettement", "5", "6 - souffre beaucoup", "7", "8 - souffre extr\u00eamement"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "20. Se sentir tendu ou paniqu\u00e9", options: ["0 - ne souffre pas du tout", "1", "2 - souffre l\u00e9g\u00e8rement", "3", "4 - souffre nettement", "5", "6 - souffre beaucoup", "7", "8 - souffre extr\u00eamement"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "21. Avoir des pens\u00e9es bouleversantes.", options: ["0 - ne souffre pas du tout", "1", "2 - souffre l\u00e9g\u00e8rement", "3", "4 - souffre nettement", "5", "6 - souffre beaucoup", "7", "8 - souffre extr\u00eamement"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "22. Sentir que vous ou votre environnement (choses, personnes) sont irr\u00e9els ou \u00e9trangers.", options: ["0 - ne souffre pas du tout", "1", "2 - souffre l\u00e9g\u00e8rement", "3", "4 - souffre nettement", "5", "6 - souffre beaucoup", "7", "8 - souffre extr\u00eamement"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
-        { q: "23. Autres sentiments p\u00e9nibles (d\u00e9crivez-les) :", options: ["0 - ne souffre pas du tout", "1", "2 - souffre l\u00e9g\u00e8rement", "3", "4 - souffre nettement", "5", "6 - souffre beaucoup", "7", "8 - souffre extr\u00eamement"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
+        { description: true, q: "23. Autres sentiments p\u00e9nibles (d\u00e9crivez-les) :", options: ["0 - ne souffre pas du tout", "1", "2 - souffre l\u00e9g\u00e8rement", "3", "4 - souffre nettement", "5", "6 - souffre beaucoup", "7", "8 - souffre extr\u00eamement"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
         { q: "24. \u00c0 combien \u00e9valuez-vous actuellement la g\u00eane que repr\u00e9sente dans votre vie votre comportement phobique? Veuillez entourer un chiffre dans l\u2019\u00e9chelle ci-dessous et le reporter dans cette case:", options: ["0 - pas de phobie", "1", "2 - l\u00e9g\u00e8rement g\u00eanant", "3", "4 - nettement g\u00eanant", "5", "6 - tr\u00e8s g\u00eanant", "7", "8 - extr\u00eamement g\u00eanant"], scores: [0, 1, 2, 3, 4, 5, 6, 7, 8] },
       ],
     },
@@ -232,26 +305,11 @@ window.CONFIG = {
 
   thresholds: {
     HADS: {
-      Anxiety: { ranges: [[0, 7, "Normal"], [8, 10, "Limite"], [11, 21, "Anormal"]] },
-      Depression: { ranges: [[0, 7, "Normal"], [8, 10, "Limite"], [11, 21, "Anormal"]] },
-    },
-    "STAI-S": {
-      Total: { ranges: [[20, 37, "Anxi\u00e9t\u00e9 faible"], [38, 44, "Anxi\u00e9t\u00e9 mod\u00e9r\u00e9e"], [45, 80, "Anxi\u00e9t\u00e9 \u00e9lev\u00e9e"]] },
-    },
-    "STAI-T": {
-      Total: { ranges: [[20, 37, "Anxi\u00e9t\u00e9 faible"], [38, 44, "Anxi\u00e9t\u00e9 mod\u00e9r\u00e9e"], [45, 80, "Anxi\u00e9t\u00e9 \u00e9lev\u00e9e"]] },
+      Anxiety: { ranges: [[0, 7, "Dans la plage normale (dépistage)"], [8, 10, "Résultat limite (dépistage)"], [11, 21, "Résultat élevé (dépistage)"]] },
+      Depression: { ranges: [[0, 7, "Dans la plage normale (dépistage)"], [8, 10, "Résultat limite (dépistage)"], [11, 21, "Résultat élevé (dépistage)"]] },
     },
     BFI: {
       _default: { ranges: [[1, 2, "Sous le point m\u00e9dian"], [2.5, 3.5, "Proche du point m\u00e9dian"], [4, 5, "Au-dessus du point m\u00e9dian"]] },
-    },
-    FQ: {
-      MainPhobia: { ranges: [[0, 2, "L\u00e9ger"], [3, 5, "Mod\u00e9r\u00e9"], [6, 8, "S\u00e9v\u00e8re"]] },
-      Agoraphobia: { ranges: [[0, 10, "Faible"], [11, 20, "Mod\u00e9r\u00e9"], [21, 40, "\u00c9lev\u00e9"]] },
-      BloodInjuryPhobia: { ranges: [[0, 10, "Faible"], [11, 20, "Mod\u00e9r\u00e9"], [21, 40, "\u00c9lev\u00e9"]] },
-      SocialPhobia: { ranges: [[0, 10, "Faible"], [11, 20, "Mod\u00e9r\u00e9"], [21, 40, "\u00c9lev\u00e9"]] },
-      TotalPhobia: { ranges: [[0, 30, "Faible"], [31, 60, "Mod\u00e9r\u00e9"], [61, 120, "\u00c9lev\u00e9"]] },
-      GlobalPhobiaRating: { ranges: [[0, 2, "L\u00e9ger"], [3, 5, "Mod\u00e9r\u00e9"], [6, 8, "S\u00e9v\u00e8re"]] },
-      AnxietyDepression: { ranges: [[0, 10, "Faible"], [11, 20, "Mod\u00e9r\u00e9"], [21, 40, "\u00c9lev\u00e9"]] },
     },
   },
 };

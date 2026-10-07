@@ -1,30 +1,14 @@
-# Instrument Copyright & Licensing
+# Instrument and library rights
 
-The [MIT license](LICENSE) covers the **software in this repository only** — the
-application code, scoring engine, tests, and test tooling. It does **not** grant
-any rights to the psychometric instruments themselves.
+[MIT](LICENSE) covers application code. Questionnaire permissions remain separate; repository access grants no instrument license.
 
-The five instruments administered by this app are the intellectual property of
-their respective authors and publishers. They are referenced here for research
-and educational purposes. Anyone administering these instruments — clinically,
-commercially, or in funded research — is responsible for obtaining the required
-permission or license directly from the rights holder.
+| Instrument | Rights and source |
+|---|---|
+| STAI | © 1968, 1977 Charles D. Spielberger; ™ Mind Garden, Inc. [Permission](https://www.mindgarden.com/145-state-trait-anxiety-inventory-for-adults). Copyright appears on screens and PDF pages containing items. |
+| HADS | © R. P. Snaith & A. S. Zigmond, 1983/1992/1994. [GL Assessment](https://www.gl-assessment.co.uk/products/hospital-anxiety-depression-scale/). Permission required. |
+| BFI-10 | © Oliver P. John, Berkeley Personality Lab. [Research terms](https://www.ocf.berkeley.edu/~johnlab/bfi.html). |
+| FQ | © Isaac M. Marks. Marks & Mathews (1979); confirm permission for the intended use. |
 
-| Instrument | Copyright holder | Terms | Where to obtain rights |
-|:-----------|:-----------------|:------|:-----------------------|
-| **STAI** (State-Trait Anxiety Inventory) | © 1968, 1977 Charles D. Spielberger; ™ Mind Garden, Inc. | Commercial. Purchased permission required; the copyright line must appear on every page containing items. | [mindgarden.com](https://www.mindgarden.com/145-state-trait-anxiety-inventory-for-adults) |
-| **HADS** (Hospital Anxiety and Depression Scale) | © R.P. Snaith & A.S. Zigmond, 1983/1992/1994; GL Assessment, UK | Commercial. Written permission + user fee for commercial and funded-academic use. | [gl-assessment.co.uk](https://www.gl-assessment.co.uk/products/hospital-anxiety-depression-scale/) · permissions@gl-assessment.co.uk |
-| **BFI-10** (Big Five Inventory) | © Oliver P. John, Berkeley Personality Lab | Free for non-commercial research use; attribution required. | [Berkeley Personality Lab](https://www.ocf.berkeley.edu/~johnlab/bfi.html) |
-| **FQ** (Fear Questionnaire) | © Isaac M. Marks | Reproduction permitted for clinical practice and non-industry research; other uses need permission. | Marks, I.M. & Mathews, A.M. (1979), *Behav. Res. Ther.* 17(3), 263–267 |
+Original forms remain in [English](docs/english/) and [French](docs/french/). The English FQ note lists six anxiety/depression items but a 0–40 range. Scoring uses five fixed items; optional other feelings stay separate.
 
-## Important
-
-**STAI and HADS require purchased permission.** This repository currently bundles
-their verbatim item text (`lang/en.js`, `lang/fr.js`) and full questionnaire PDFs
-(`docs/english/`, `docs/french/`). Redistributing that content is not cured by
-attribution alone — using or deploying this app with those instruments requires a
-license from Mind Garden (STAI) and GL Assessment (HADS), or removal of the
-verbatim content pending permission.
-
-If you are not licensed for STAI/HADS, remove `docs/*/STAI.pdf`, `docs/*/HADS.pdf`
-and their item text before deploying.
+Bundled libraries: Bootstrap **5.1.3** and jsPDF **4.2.1**, MIT. Their original copyright/license headers remain in `lib/`. `npm run check:vendor` verifies jsPDF against its locked package.

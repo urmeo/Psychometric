@@ -1,75 +1,14 @@
-/**
- * Psychometric Test Suite — shared application logic.
- *
- * An IIFE that reads all configuration (UI strings, test questions, scoring
- * rules, interpretation thresholds) from {@link window.CONFIG}, which must be
- * set by a language module (lang/en.js or lang/fr.js) loaded before this file.
- *
- * Scoring modes (driven by CONFIG.scoring[testName].type):
- *  - "total"         — sum of all item scores (STAI-S, STAI-T)
- *  - "subscale"      — sum items per subscale index list (HADS, FQ)
- *  - "trait-average"  — sum then divide by item count per trait (BFI-10)
- *
- * @file shared/app.js
- */
+/* Local questionnaire scoring, session validation and offline exports. */
 (function () {
   "use strict";
 
-  var C = window.CONFIG;
-  var ui = C.ui;
-  var allTests = C.tests;
-
-  function isInt(v) { return typeof v === "number" && isFinite(v) && Math.floor(v) === v; }
-
-  // ── DOM helpers ───────────────────────────────────────────────────
-
-  function $(sel) { return document.querySelector(sel); }
-  function $$(sel) { return document.querySelectorAll(sel); }
-
-  /**
-   * Create a DOM element. Special attribute keys: "text" sets textContent
-   * (the only content path — never innerHTML), "className" sets the class;
-   * everything else goes through setAttribute().
-   *
-   * @param {string} tag - HTML tag name
-   * @param {Object|null} attrs - Attribute map
-   * @param {Array<Element|string>} [children] - Child nodes or text strings to append
-   * @returns {Element}
-   */
-  function el(tag, attrs, children) {
-    var node = document.createElement(tag);
-    if (attrs) Object.keys(attrs).forEach(function (k) {
-      if (k === "text") { node.textContent = attrs[k]; }
-      else if (k === "className") { node.className = attrs[k]; }
-      else { node.setAttribute(k, attrs[k]); }
-    });
-    if (children) children.forEach(function (c) {
-      if (typeof c === "string") node.appendChild(document.createTextNode(c));
-      else if (c) node.appendChild(c);
-    });
-    return node;
-  }
-
-  function empty(node) { while (node.firstChild) node.removeChild(node.firstChild); }
-  function addClass(node, cls) { node.classList.add(cls); }
-  function removeClass(node, cls) { node.classList.remove(cls); }
-
-  // ── State ─────────────────────────────────────────────────────────
-  /**
-   * Mutable application state shared across all functions.
-   * Exposed to tests via window.__TEST__.state.
-   * @type {{
-   *   currentTestIndex: number,
-   *   currentQuestionIndex: number,
-   *   totalQuestions: number,
-   *   answers: Array<{test:string, question:string, answer:string, score:number, time:number, questionStartTime:string, answerTime:string}>,
-   *   testStartTime: Date|null,
-   *   questionStartTime: Date|null,
-   *   testInProgress: boolean,
-   *   participantId: string,
-   *   tests: Array<Object>
-   * }}
-   */
+  var C = window.CONFIG || {};
+  var ui = C.ui || {};
+  var allTests = Array.isArray(C.tests) ? C.tests : [];
+  var SESSION_VERSION = 1;
+  var sessionGeneration = 0;
+  var invalidSavedSession = false;
+  var progressPersisted = false;
   var state = {
     currentTestIndex: 0,
     currentQuestionIndex: 0,
@@ -84,788 +23,768 @@
     tests: [],
   };
 
-  // ── Persistence ───────────────────────────────────────────────────
+  function isInt(value) {
+    return typeof value === "number" && Number.isFinite(value) && Math.floor(value) === value;
+  }
+  function isObject(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+  function validDate(value) {
+    return typeof value === "string" && Number.isFinite(Date.parse(value));
+  }
+  function $(selector) { return document.querySelector(selector); }
+  function $$(selector) { return document.querySelectorAll(selector); }
+  function el(tag, attrs, children) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      if (key === "text") node.textContent = attrs[key];
+      else if (key === "className") node.className = attrs[key];
+      else node.setAttribute(key, attrs[key]);
+    });
+    (children || []).forEach(function (child) {
+      if (typeof child === "string") node.appendChild(document.createTextNode(child));
+      else if (child) node.appendChild(child);
+    });
+    return node;
+  }
+  function empty(node) { while (node && node.firstChild) node.removeChild(node.firstChild); }
+  function hide(node) { if (node) node.classList.add("hidden"); }
+  function show(node) { if (node) node.classList.remove("hidden"); }
+  function testByName(name) {
+    return allTests.filter(function (test) { return test.name === name; })[0];
+  }
 
-  /** Serialize current state to localStorage so the session can be resumed. */
+  function resetState() {
+    sessionGeneration++;
+    progressPersisted = false;
+    state.currentTestIndex = 0;
+    state.currentQuestionIndex = 0;
+    state.totalQuestions = 0;
+    state.answers = [];
+    state.testStartTime = null;
+    state.testEndTime = null;
+    state.questionStartTime = null;
+    state.resultsExported = false;
+    state.testInProgress = false;
+    state.participantId = "";
+    state.tests = [];
+  }
+
+  /* Exact content signature for save compatibility, not encryption or authentication. */
+  function configSignature() {
+    return JSON.stringify({
+      lang: C.lang,
+      revision: C.revision,
+      tests: allTests.map(function (test) {
+        return { name: test.name, questions: test.questions, metadata: C.testMetadata[test.name] };
+      }),
+      scoring: C.scoring,
+    });
+  }
+
+  /* Return canonical response text and keyed score from its option identity. */
+  function canonicalAnswer(answer, test, questionIndex, checkTimes) {
+    if (!isObject(answer) || answer.test !== test.name || answer.questionIndex !== questionIndex) return null;
+    var question = test.questions[questionIndex - 1];
+    if (!question || !isInt(answer.optionIndex) || answer.optionIndex < 0 || answer.optionIndex >= question.options.length) return null;
+    if (answer.question !== question.q || answer.answer !== question.options[answer.optionIndex] || answer.score !== question.scores[answer.optionIndex]) return null;
+    var description = answer.description === undefined ? "" : answer.description;
+    if (typeof description !== "string" || (!question.description && description !== "")) return null;
+    if (checkTimes) {
+      if (!Number.isFinite(answer.time) || answer.time < 0 || !validDate(answer.questionStartTime) || !validDate(answer.answerTime)) return null;
+      var elapsed = (Date.parse(answer.answerTime) - Date.parse(answer.questionStartTime)) / 1000;
+      if (elapsed < 0 || Math.abs(elapsed - answer.time) > 0.001) return null;
+    }
+    return {
+      test: test.name,
+      questionIndex: questionIndex,
+      optionIndex: answer.optionIndex,
+      question: question.q,
+      answer: question.options[answer.optionIndex],
+      description: description,
+      score: question.scores[answer.optionIndex],
+      time: answer.time,
+      questionStartTime: answer.questionStartTime,
+      answerTime: answer.answerTime,
+    };
+  }
+
+  /* Validate a saved answered prefix before assigning any live session state. */
+  function validateSession(saved) {
+    if (!isObject(saved) || saved.version !== SESSION_VERSION || saved.lang !== C.lang || saved.revision !== C.revision || saved.configSignature !== configSignature()) return null;
+    if (typeof saved.participantId !== "string" || !validDate(saved.testStartTime) || !Array.isArray(saved.answers) || !Array.isArray(saved.selectedTestNames) || !saved.selectedTestNames.length) return null;
+    var names = saved.selectedTestNames;
+    if (names.some(function (name, index) { return typeof name !== "string" || !testByName(name) || names.indexOf(name) !== index; })) return null;
+    var tests = allTests.filter(function (test) { return names.indexOf(test.name) !== -1; });
+    if (tests.some(function (test, index) { return test.name !== names[index]; })) return null;
+    if (!isInt(saved.currentTestIndex) || saved.currentTestIndex < 0 || saved.currentTestIndex >= tests.length) return null;
+    var currentTest = tests[saved.currentTestIndex];
+    if (!isInt(saved.currentQuestionIndex) || saved.currentQuestionIndex < 0 || saved.currentQuestionIndex >= currentTest.questions.length) return null;
+    var prefix = [];
+    tests.forEach(function (test, index) {
+      var count = index < saved.currentTestIndex ? test.questions.length : index === saved.currentTestIndex ? saved.currentQuestionIndex : 0;
+      for (var question = 1; question <= count; question++) prefix.push({ test: test, question: question });
+    });
+    if (saved.answers.length !== prefix.length) return null;
+    var previousTime = Date.parse(saved.testStartTime);
+    var now = Date.now();
+    if (previousTime > now) return null;
+    var answers = [];
+    for (var i = 0; i < prefix.length; i++) {
+      var answer = canonicalAnswer(saved.answers[i], prefix[i].test, prefix[i].question, true);
+      if (!answer || Date.parse(answer.questionStartTime) < previousTime || Date.parse(answer.answerTime) > now) return null;
+      previousTime = Date.parse(answer.answerTime);
+      answers.push(answer);
+    }
+    return {
+      version: SESSION_VERSION,
+      lang: C.lang,
+      revision: C.revision,
+      configSignature: configSignature(),
+      participantId: saved.participantId,
+      currentTestIndex: saved.currentTestIndex,
+      currentQuestionIndex: saved.currentQuestionIndex,
+      answers: answers,
+      testStartTime: saved.testStartTime,
+      selectedTestNames: names.slice(),
+    };
+  }
+
+  /* Check before advancing or saving so a delayed storage event cannot revive a clear. */
+  function storedProgressAvailable() {
+    if (!progressPersisted) return true;
+    var raw;
+    try {
+      raw = localStorage.getItem(C.storageKey);
+    } catch (error) { return true; }
+    var saved;
+    try { saved = JSON.parse(raw); } catch (error) { saved = null; }
+    if (!saved || saved.testStartTime !== state.testStartTime.toISOString()) {
+      resetState();
+      showSetupScreen(raw === null ? ui.dataCleared : ui.invalidSession);
+      return false;
+    }
+    return true;
+  }
   function saveProgress() {
+    if (!state.testInProgress || !storedProgressAvailable()) return;
     try {
       localStorage.setItem(C.storageKey, JSON.stringify({
+        version: SESSION_VERSION,
+        lang: C.lang,
+        revision: C.revision,
+        configSignature: configSignature(),
         participantId: state.participantId,
         currentTestIndex: state.currentTestIndex,
         currentQuestionIndex: state.currentQuestionIndex,
         answers: state.answers,
-        testStartTime: state.testStartTime ? state.testStartTime.toISOString() : null,
-        selectedTestNames: state.tests.map(function (t) { return t.name; }),
+        testStartTime: state.testStartTime.toISOString(),
+        selectedTestNames: state.tests.map(function (test) { return test.name; }),
       }));
-    } catch (e) { /* localStorage full or disabled — session won't resume but test continues */ }
+      progressPersisted = true;
+    } catch (error) { /* A disabled/full store does not prevent answering. */ }
   }
-
-  /**
-   * Load a previously saved session from localStorage.
-   * @returns {Object|null} Saved state object, or null if none exists
-   */
+  function clearProgress() {
+    try { localStorage.removeItem(C.storageKey); } catch (error) { /* Storage may be disabled. */ }
+  }
   function loadProgress() {
+    invalidSavedSession = false;
     try {
-      var d = JSON.parse(localStorage.getItem(C.storageKey));
-      return d && Array.isArray(d.answers) && d.answers.length > 0 ? d : null;
-    } catch (e) { return null; }
+      var raw = localStorage.getItem(C.storageKey);
+      if (raw === null) return null;
+      var saved = validateSession(JSON.parse(raw));
+      if (saved) return saved;
+    } catch (error) { /* Malformed or inaccessible storage cannot resume. */ }
+    invalidSavedSession = true;
+    clearProgress();
+    return null;
+  }
+  function clearAllData() {
+    ["psychometric_progress_en", "psychometric_progress_fr", C.storageKey].forEach(function (key) {
+      try { localStorage.removeItem(key); } catch (error) { /* Storage may be disabled. */ }
+    });
+    resetState();
+    showSetupScreen(ui.dataCleared);
   }
 
-  /** Remove saved session data from localStorage. */
-  function clearProgress() { try { localStorage.removeItem(C.storageKey); } catch (e) { /* ignore */ } }
-
-  // ── Scoring ───────────────────────────────────────────────────────
-
-  /**
-   * Compute summary scores for every selected test based on CONFIG.scoring rules.
-   *
-   * Scoring types handled:
-   *  - "total": simple sum of all item scores → returns a number
-   *  - "subscale": sum items belonging to each subscale (by 1-based question
-   *    number) → returns {subscaleName: number, …}
-   *  - "trait-average": sum items per trait then divide by the trait's item
-   *    count → returns {traitName: number, …}
-   *
-   * If no scoring config exists for a test, falls back to a simple sum.
-   *
-   * @returns {Object<string, number|Object<string, number>>} Map of test name
-   *   to either a total score (number) or an object of subscale/trait scores
-   */
+  /* Complete, unique option identities are required before a score exists. */
+  function completedAnswers(checkTimes) {
+    if (!Array.isArray(state.tests) || !state.tests.length || !Array.isArray(state.answers)) throw new Error(ui.invalidResults);
+    var tests = {};
+    var expected = 0;
+    state.tests.forEach(function (test) {
+      if (!testByName(test.name) || tests[test.name]) throw new Error(ui.invalidResults);
+      tests[test.name] = testByName(test.name);
+      expected += test.questions.length;
+    });
+    if (state.answers.length !== expected) throw new Error(ui.invalidResults);
+    var seen = {};
+    return state.answers.map(function (answer) {
+      var test = tests[answer && answer.test];
+      if (!test || !isInt(answer.questionIndex)) throw new Error(ui.invalidResults);
+      var key = test.name + ":" + answer.questionIndex;
+      var canonical = canonicalAnswer(answer, test, answer.questionIndex, checkTimes);
+      if (!canonical || seen[key]) throw new Error(ui.invalidResults);
+      seen[key] = true;
+      return canonical;
+    });
+  }
   function calculateSummaryScores() {
+    var answers = completedAnswers(false);
     var scores = {};
     state.tests.forEach(function (test) {
-      var testAnswers = state.answers.filter(function (a) { return a.test === test.name; });
-      var cfg = C.scoring[test.name];
-      if (!cfg) {
-        scores[test.name] = testAnswers.reduce(function (acc, a) { return acc + a.score; }, 0);
-        return;
-      }
-      if (cfg.type === "total") {
-        scores[test.name] = testAnswers.reduce(function (acc, a) { return acc + a.score; }, 0);
-      } else if (cfg.type === "subscale") {
+      var byQuestion = {};
+      answers.filter(function (answer) { return answer.test === test.name; }).forEach(function (answer) { byQuestion[answer.questionIndex] = answer.score; });
+      var config = C.scoring[test.name];
+      if (config.type === "total") {
+        scores[test.name] = test.questions.reduce(function (sum, question, index) { return sum + byQuestion[index + 1]; }, 0);
+      } else {
+        var groups = config.subscales || config.traits;
         scores[test.name] = {};
-        var subs = cfg.subscales;
-        Object.keys(subs).forEach(function (s) { scores[test.name][s] = 0; });
-        testAnswers.forEach(function (a, idx) {
-          var qNum = a.questionIndex != null ? a.questionIndex : idx + 1;
-          Object.keys(subs).forEach(function (s) {
-            if (subs[s].indexOf(qNum) !== -1) scores[test.name][s] += a.score;
-          });
-        });
-      } else if (cfg.type === "trait-average") {
-        scores[test.name] = {};
-        var traits = cfg.traits;
-        Object.keys(traits).forEach(function (t) { scores[test.name][t] = 0; });
-        testAnswers.forEach(function (a, idx) {
-          var qNum = a.questionIndex != null ? a.questionIndex : idx + 1;
-          Object.keys(traits).forEach(function (t) {
-            if (traits[t].indexOf(qNum) !== -1) scores[test.name][t] += a.score;
-          });
-        });
-        Object.keys(traits).forEach(function (t) {
-          scores[test.name][t] /= traits[t].length;
+        Object.keys(groups).forEach(function (name) {
+          var sum = groups[name].reduce(function (total, index) { return total + byQuestion[index]; }, 0);
+          scores[test.name][name] = config.type === "trait-average" ? sum / groups[name].length : sum;
         });
       }
     });
     return scores;
   }
-
-  /**
-   * Look up a clinical interpretation label for a given score.
-   *
-   * Searches CONFIG.thresholds[testName] for a matching range. Falls back to
-   * the "_default" entry if no subscale-specific thresholds exist (used by BFI).
-   *
-   * @param {string} testName - Test identifier (e.g. "HADS", "STAI-S", "BFI")
-   * @param {string|null} subScale - Subscale or trait name, or null for total-score tests
-   * @param {number} score - The computed score to classify
-   * @returns {string} Interpretation label (e.g. "Normal", "Borderline", "Abnormal"), or ""
-   */
-  function getInterpretation(testName, subScale, score) {
-    var testThresh = C.thresholds[testName];
-    if (!testThresh) return "";
-    var key = subScale || "Total";
-    var entry = testThresh[key] || testThresh._default;
-    if (!entry) return "";
-    var ranges = entry.ranges;
-    for (var i = 0; i < ranges.length; i++) {
-      if (score >= ranges[i][0] && score <= ranges[i][1]) return ranges[i][2];
+  function getInterpretation(testName, subscale, score) {
+    var threshold = C.thresholds[testName];
+    var entry = threshold && (threshold[subscale || "Total"] || threshold._default);
+    if (!entry || !Number.isFinite(score)) return "";
+    for (var i = 0; i < entry.ranges.length; i++) {
+      var range = entry.ranges[i];
+      if (score >= range[0] && score <= range[1]) return range[2];
     }
-    // Fail closed: an out-of-range score returns no label rather than silently
-    // reporting the highest-severity band.
     return "";
   }
-
-  /**
-   * Map an interpretation label to a CSS class for color-coded display.
-   *
-   * Checks substrings in a specific order to avoid false matches (e.g.
-   * "abnormal" contains "normal", so abnormal/anormal must be tested first).
-   * Supports both English and French labels.
-   *
-   * @param {string} label - Interpretation text from getInterpretation()
-   * @returns {"interp-abnormal"|"interp-moderate"|"interp-normal"|""} CSS class name
-   */
   function interpClass(label) {
     if (!label) return "";
-    var l = label.toLowerCase();
-    if (l.indexOf("abnormal") !== -1 || l.indexOf("anormal") !== -1 ||
-        l.indexOf("high") !== -1 || l.indexOf("severe") !== -1 ||
-        l.indexOf("\u00e9lev\u00e9") !== -1 || l.indexOf("s\u00e9v\u00e8re") !== -1) return "interp-abnormal";
-    if (l.indexOf("moderate") !== -1 || l.indexOf("borderline") !== -1 || l.indexOf("average") !== -1 ||
-        l.indexOf("mod\u00e9r\u00e9") !== -1 || l.indexOf("limite") !== -1 || l.indexOf("moyen") !== -1) return "interp-moderate";
-    if (l.indexOf("normal") !== -1 || l.indexOf("low") !== -1 || l.indexOf("mild") !== -1 ||
-        l.indexOf("faible") !== -1 || l.indexOf("l\u00e9ger") !== -1) return "interp-normal";
+    var configuredHads = C.thresholds.HADS;
+    var hads = configuredHads && configuredHads.Anxiety ? configuredHads.Anxiety.ranges : [];
+    for (var i = 0; i < hads.length; i++) {
+      if (label === hads[i][2]) return ["interp-normal", "interp-moderate", "interp-abnormal"][i];
+    }
+    var value = label.toLowerCase();
+    if (/abnormal|anormal|high|severe|élevé|sévère/.test(value)) return "interp-abnormal";
+    if (/moderate|borderline|average|modéré|limite|moyen/.test(value)) return "interp-moderate";
+    if (/normal|low|mild|faible|léger/.test(value)) return "interp-normal";
     return "";
   }
+  function scoreRange(testName, subscale) {
+    var test = testByName(testName);
+    var config = C.scoring[testName];
+    var groups = config.subscales || config.traits;
+    var indices = groups ? groups[subscale] : test.questions.map(function (question, index) { return index + 1; });
+    return ["min", "max"].map(function (bound) {
+      var total = indices.reduce(function (sum, index) { return sum + Math[bound].apply(Math, test.questions[index - 1].scores); }, 0);
+      return config.type === "trait-average" ? total / indices.length : total;
+    });
+  }
+  function formatScoreValue(value) {
+    return typeof value === "number" && !isInt(value) ? value.toFixed(2) : String(value);
+  }
+  function summaryRows(summary) {
+    var rows = [];
+    Object.keys(summary).forEach(function (name) {
+      var values = typeof summary[name] === "object" ? summary[name] : { Total: summary[name] };
+      Object.keys(values).forEach(function (key) {
+        rows.push({
+          test: name, key: key, label: key === "Total" ? ui.totalLabel : C.subscaleLabels[key],
+          score: formatScoreValue(values[key]),
+          range: scoreRange(name, key).map(formatScoreValue).join("-"),
+          interpretation: getInterpretation(name, key, values[key]) || ui.rawScoreLabel,
+        });
+      });
+    });
+    return rows;
+  }
 
-  // ── Config integrity ─────────────────────────────────────────────
-
-  /**
-   * Validate a CONFIG object's structural integrity. Catches the data errors a
-   * config-driven scorer is most exposed to — an option/score length mismatch,
-   * a subscale/trait pointing at a non-existent item, or a malformed threshold
-   * range — before any scoring runs.
-   *
-   * @param {Object} cfg - A CONFIG object (window.CONFIG shape)
-   * @returns {string[]} Human-readable problems; empty array means valid
-   */
-  function validateConfig(cfg) {
+  function validateConfig(config) {
     var problems = [];
-    var testsByName = {};
-
-    (cfg.tests || []).forEach(function (t) {
-      testsByName[t.name] = t;
-      (t.questions || []).forEach(function (q, i) {
-        var where = t.name + " Q" + (i + 1);
-        if (!Array.isArray(q.options) || !Array.isArray(q.scores)) {
-          problems.push(where + ": missing options/scores array");
-        } else if (q.options.length !== q.scores.length) {
-          problems.push(where + ": " + q.options.length + " options but " + q.scores.length + " scores");
-        } else if (q.scores.some(function (s) { return typeof s !== "number" || isNaN(s); })) {
-          problems.push(where + ": non-numeric score");
-        }
+    if (!isObject(config)) return ["missing configuration"];
+    var tests = Array.isArray(config.tests) ? config.tests : [];
+    if (!tests.length) problems.push("tests must be a nonempty array");
+    if (typeof config.lang !== "string" || !config.lang || typeof config.revision !== "string" || !config.revision || typeof config.storageKey !== "string" || !config.storageKey) problems.push("missing language, revision or storage key");
+    if (!isObject(config.ui) || !isObject(config.export) || !isObject(config.testMetadata) || !isObject(config.subscaleLabels)) problems.push("missing UI, export, metadata or labels");
+    var requiredUI = [
+      "pageTitle", "heading", "startBtn", "nextBtn", "downloadCsvBtn", "downloadPdfBtn",
+      "clearDataBtn", "dataCleared", "consent", "participantLabel", "participantPlaceholder",
+      "selectTests", "items", "resumeFound", "resumeParticipant", "resumeAnswers", "resumeBtn",
+      "newSessionBtn", "alertSelectTest", "alertAnswer", "alertCsvFail", "alertPdfFail",
+      "alertPdfError", "alertPdfEncoding", "configError", "resultsHeading", "participantLabel2", "durationLabel",
+      "minutes", "colScale", "colSubscale", "colScore", "colRange", "colInterpretation",
+      "totalLabel", "resultsTableCaption", "descriptionLabel", "invalidSession", "invalidResults",
+      "rawScoreLabel", "csvSessionTitle", "csvParticipant", "csvDuration", "csvTestsCompleted",
+      "csvLanguage", "csvRevision", "csvStarted", "csvCompleted", "csvGenerated", "csvForm",
+      "csvSource", "csvNotice", "csvDisclaimer", "csvSummaryTitle", "csvSummaryHeaders",
+      "csvDetailTitle", "csvHeaders", "pdfTitle", "pdfGenerated", "pdfParticipant", "pdfDuration",
+      "pdfLanguage", "pdfRevision", "pdfStarted", "pdfCompleted", "pdfForm", "pdfSource",
+      "pdfDisclaimer", "pdfNotice", "pdfSummary", "pdfDetailed", "pdfTest", "pdfQuestion",
+      "pdfAnswer", "pdfDescription", "pdfScore", "pdfTime", "disclaimer",
+    ];
+    requiredUI.forEach(function (key) {
+      if (!config.ui || typeof config.ui[key] !== "string" || !config.ui[key]) problems.push("missing UI label " + key);
+    });
+    ["csvFilename", "pdfFilename"].forEach(function (key) {
+      if (!config.export || typeof config.export[key] !== "string" || !config.export[key]) problems.push("missing export filename " + key);
+    });
+    if (config.ui && typeof config.ui.csvSummaryHeaders === "string" && config.ui.csvSummaryHeaders.split(",").length !== 6) problems.push("CSV summary needs six columns");
+    if (config.ui && typeof config.ui.csvHeaders === "string" && config.ui.csvHeaders.split(",").length !== 10) problems.push("CSV responses need ten columns");
+    var byName = {};
+    tests.forEach(function (test) {
+      if (!isObject(test) || typeof test.name !== "string" || !test.name || byName[test.name]) { problems.push("invalid or duplicate test name"); return; }
+      byName[test.name] = test;
+      var questions = Array.isArray(test.questions) ? test.questions : [];
+      if (!questions.length) problems.push(test.name + ": no questions");
+      questions.forEach(function (question, index) {
+        var where = test.name + " Q" + (index + 1);
+        if (!isObject(question) || typeof question.q !== "string" || !question.q || !Array.isArray(question.options) || !question.options.length || !Array.isArray(question.scores)) { problems.push(where + ": invalid question/options/scores"); return; }
+        if (question.options.length !== question.scores.length) problems.push(where + ": options/scores length mismatch");
+        if (question.options.some(function (option) { return typeof option !== "string" || !option; })) problems.push(where + ": invalid option text");
+        if (question.scores.some(function (score) { return typeof score !== "number" || !Number.isFinite(score); })) problems.push(where + ": non-finite score");
+        if (question.description !== undefined && typeof question.description !== "boolean") problems.push(where + ": invalid description flag");
+      });
+      var metadata = config.testMetadata && config.testMetadata[test.name];
+      if (!isObject(metadata) || ["form", "source", "notice"].some(function (key) { return typeof metadata[key] !== "string" || !metadata[key]; })) problems.push(test.name + ": missing form/source/notice");
+    });
+    if (!isObject(config.scoring)) problems.push("missing scoring config");
+    Object.keys(byName).forEach(function (name) {
+      var scoring = config.scoring && config.scoring[name];
+      if (!isObject(scoring) || ["total", "subscale", "trait-average"].indexOf(scoring.type) === -1) { problems.push(name + ": unsupported scoring type"); return; }
+      if (scoring.type === "total") return;
+      var groups = scoring.type === "subscale" ? scoring.subscales : scoring.traits;
+      if (!isObject(groups) || !Object.keys(groups).length) { problems.push(name + ": no scoring groups"); return; }
+      Object.keys(groups).forEach(function (group) {
+        var indices = groups[group];
+        if (!Array.isArray(indices) || !indices.length) { problems.push(name + "." + group + ": empty group"); return; }
+        if (indices.some(function (index, position) { return !isInt(index) || index < 1 || !Array.isArray(byName[name].questions) || index > byName[name].questions.length || indices.indexOf(index) !== position; })) problems.push(name + "." + group + ": invalid or duplicate item index");
+        if (!config.subscaleLabels || typeof config.subscaleLabels[group] !== "string" || !config.subscaleLabels[group]) problems.push(name + "." + group + ": missing display label");
       });
     });
-
-    Object.keys(cfg.scoring || {}).forEach(function (name) {
-      var t = testsByName[name];
-      if (!t) { problems.push("scoring[" + name + "]: no matching test"); return; }
-      var count = t.questions.length;
-      var groups = cfg.scoring[name].subscales || cfg.scoring[name].traits;
-      if (groups) Object.keys(groups).forEach(function (g) {
-        groups[g].forEach(function (idx) {
-          if (!isInt(idx) || idx < 1 || idx > count) {
-            problems.push("scoring[" + name + "]." + g + ": item " + idx + " out of range 1.." + count);
-          }
+    Object.keys(config.scoring || {}).forEach(function (name) { if (!byName[name]) problems.push("scoring[" + name + "]: no matching test"); });
+    if (!isObject(config.thresholds)) problems.push("missing thresholds config");
+    Object.keys(config.thresholds || {}).forEach(function (name) {
+      var entries = config.thresholds[name];
+      if (!byName[name] || !isObject(entries)) { problems.push("invalid threshold test " + name); return; }
+      Object.keys(entries).forEach(function (key) {
+        var entry = entries[key];
+        var scoring = config.scoring && config.scoring[name];
+        var groups = scoring && (scoring.subscales || scoring.traits);
+        if (!scoring || (scoring.type === "total" && key !== "Total" && key !== "_default") || (scoring.type !== "total" && key !== "_default" && (!groups || !Object.prototype.hasOwnProperty.call(groups, key)))) problems.push(name + "." + key + ": unknown threshold score");
+        if (!isObject(entry) || !Array.isArray(entry.ranges) || !entry.ranges.length) { problems.push(name + "." + key + ": no ranges"); return; }
+        var previous = null;
+        entry.ranges.forEach(function (range) {
+          if (!Array.isArray(range) || range.length !== 3 || !Number.isFinite(range[0]) || !Number.isFinite(range[1]) || typeof range[2] !== "string" || !range[2] || range[0] > range[1] || (previous !== null && range[0] <= previous)) problems.push(name + "." + key + ": malformed or overlapping range");
+          if (Array.isArray(range)) previous = range[1];
         });
       });
     });
-
-    Object.keys(cfg.thresholds || {}).forEach(function (name) {
-      var byKey = cfg.thresholds[name];
-      Object.keys(byKey).forEach(function (key) {
-        var ranges = byKey[key].ranges;
-        if (!Array.isArray(ranges)) { problems.push("thresholds[" + name + "]." + key + ": no ranges"); return; }
-        var prevHi = null;
-        ranges.forEach(function (r, i) {
-          var at = "thresholds[" + name + "]." + key + " range " + i;
-          if (r.length < 3 || typeof r[2] !== "string") problems.push(at + ": malformed");
-          else if (r[0] > r[1]) problems.push(at + ": lo > hi");
-          else if (prevHi !== null && r[0] <= prevHi) problems.push(at + ": overlaps previous");
-          prevHi = r[1];
-        });
-      });
-    });
-
     return problems;
   }
 
-  // ── CSV helper ────────────────────────────────────────────────────
-
-  /**
-   * Escape a value for safe inclusion in a CSV cell (RFC 4180).
-   * Wraps in double-quotes if the value contains commas, quotes, or newlines;
-   * doubles any internal quotes.
-   *
-   * @param {*} field - Value to escape (coerced to string)
-   * @returns {string}
-   */
   function csvEscape(field) {
-    var str = String(field);
-    // Neutralize spreadsheet formula injection: a leading =, +, -, @, tab, or CR
-    // makes Excel/Sheets treat the cell as a formula, so prefix it with a quote.
-    if (/^[=+\-@\t\r]/.test(str)) {
-      str = "'" + str;
-    }
-    if (str.indexOf(",") !== -1 || str.indexOf('"') !== -1 || str.indexOf("\n") !== -1) {
-      return '"' + str.replace(/"/g, '""') + '"';
-    }
-    return str;
+    var value = String(field);
+    if (/^[=+\-@\t\r\n＝＋－＠]/.test(value)) value = "'" + value;
+    return /[",\r\n]/.test(value) ? '"' + value.replace(/"/g, '""') + '"' : value;
   }
-
-  /**
-   * Format a computed score for output: two decimals for a non-integer (e.g. a
-   * BFI trait mean), otherwise the value as-is. Shared by the table, CSV and PDF
-   * so the three renderings never disagree.
-   * @param {number|string} val
-   * @returns {string}
-   */
-  function formatScoreValue(val) {
-    return (typeof val === "number" && !isInt(val)) ? val.toFixed(2) : String(val);
-  }
-
-  /**
-   * Session duration in minutes, frozen at completion so the on-screen value
-   * and both exports always agree.
-   * @param {number} decimals
-   * @returns {string}
-   */
   function sessionMinutes(decimals) {
-    var end = state.testEndTime || new Date();
-    return ((end - state.testStartTime) / 1000 / 60).toFixed(decimals);
+    return ((state.testEndTime - state.testStartTime) / 60000).toFixed(decimals);
   }
-
-  // ── UI Rendering ──────────────────────────────────────────────────
-
-  /**
-   * Render the initial setup screen: consent text, participant ID input,
-   * and test-selection checkboxes. All tests are checked by default.
-   */
-  function showSetupScreen() {
+  function showSetupScreen(message) {
+    empty($("#setup-area"));
+    ["#instruction-area", "#test-area", "#results-area"].forEach(function (selector) { empty($(selector)); });
+    hide($("#progress-container"));
+    hide($("#results-area"));
+    hide($("#download-buttons"));
     var area = $("#setup-area");
-    empty(area);
-
-    var consent = el("div", { className: "consent-text" }, [
-      el("p", { text: ui.consent }),
-    ]);
-    area.appendChild(consent);
-
-    var mb3 = el("div", { className: "mb-3" });
-    mb3.appendChild(el("label", { "for": "participantIdInput", className: "form-label fw-bold", text: ui.participantLabel }));
-    mb3.appendChild(el("input", { type: "text", className: "form-control participant-id-input", id: "participantIdInput", placeholder: ui.participantPlaceholder }));
-    area.appendChild(mb3);
-
-    var sel = el("div", { className: "test-selection" });
-    sel.appendChild(el("p", { className: "fw-bold", text: ui.selectTests }));
-    allTests.forEach(function (t, i) {
-      var fc = el("div", { className: "form-check" });
-      fc.appendChild(el("input", { className: "form-check-input test-checkbox", type: "checkbox", id: "test" + i, value: String(i), checked: "" }));
-      fc.appendChild(el("label", { className: "form-check-label", "for": "test" + i, text: t.name + " (" + t.questions.length + " " + ui.items + ")" }));
-      sel.appendChild(fc);
+    if (message) area.appendChild(el("p", { role: "status", text: message }));
+    area.appendChild(el("div", { className: "consent-text" }, [el("p", { text: ui.consent })]));
+    area.appendChild(el("div", { className: "mb-3" }, [
+      el("label", { "for": "participantIdInput", className: "form-label fw-bold", text: ui.participantLabel }),
+      el("input", { type: "text", className: "form-control participant-id-input", id: "participantIdInput", placeholder: ui.participantPlaceholder }),
+    ]));
+    var selection = el("div", { className: "test-selection" }, [el("p", { className: "fw-bold", text: ui.selectTests })]);
+    allTests.forEach(function (test, index) {
+      selection.appendChild(el("div", { className: "form-check" }, [
+        el("input", { className: "form-check-input test-checkbox", type: "checkbox", id: "test" + index, value: String(index), checked: "" }),
+        el("label", { className: "form-check-label", "for": "test" + index, text: test.name + " (" + test.questions.length + " " + ui.items + ")" }),
+      ]));
     });
-    area.appendChild(sel);
-
-    var btn = $("#nextBtn");
-    btn.textContent = ui.startBtn;
-    removeClass(btn, "hidden");
+    area.appendChild(selection);
+    var button = $("#nextBtn");
+    button.textContent = ui.startBtn;
+    button.disabled = false;
+    show(button);
   }
-
-  /**
-   * Show a prompt to resume a previously saved session or start fresh.
-   * @param {Object} saved - Saved state from loadProgress()
-   */
   function showResumeScreen(saved) {
+    var snapshot = validateSession(saved);
+    if (!snapshot) {
+      clearProgress();
+      resetState();
+      showSetupScreen(ui.invalidSession);
+      return;
+    }
+    var generation = ++sessionGeneration;
     var area = $("#setup-area");
     empty(area);
-
-    var box = el("div", { className: "resume-prompt" });
-    var msg = ui.resumeFound;
-    if (saved.participantId) msg += " (" + ui.resumeParticipant + ": " + saved.participantId + ")";
-    msg += " — " + saved.answers.length + " " + ui.resumeAnswers;
-    box.appendChild(el("p", { text: msg }));
-
-    var resumeBtn = el("button", { id: "resumeBtn", className: "btn btn-primary me-2", text: ui.resumeBtn });
-    var newBtn = el("button", { id: "newSessionBtn", className: "btn btn-outline-secondary", text: ui.newSessionBtn });
-    box.appendChild(resumeBtn);
-    box.appendChild(newBtn);
-    area.appendChild(box);
-
-    addClass($("#nextBtn"), "hidden");
-
-    resumeBtn.addEventListener("click", function () {
-      state.participantId = saved.participantId || "";
-      state.currentTestIndex = saved.currentTestIndex;
-      state.currentQuestionIndex = saved.currentQuestionIndex;
-      state.answers = saved.answers;
-      state.testStartTime = saved.testStartTime ? new Date(saved.testStartTime) : new Date();
-      var savedNames = saved.selectedTestNames || allTests.map(function (t) { return t.name; });
-      state.tests = allTests.filter(function (t) { return savedNames.indexOf(t.name) !== -1; });
-      state.totalQuestions = state.tests.reduce(function (acc, t) { return acc + t.questions.length; }, 0);
-
-      // A save from an older config (or edited by hand) can point past the
-      // current test list; discard it rather than crash mid-resume.
-      var t = state.tests[state.currentTestIndex];
-      if (!t || state.currentQuestionIndex < 0 || state.currentQuestionIndex >= t.questions.length) {
-        clearProgress();
-        showSetupScreen();
+    var message = ui.resumeFound;
+    if (snapshot.participantId) message += " (" + ui.resumeParticipant + ": " + snapshot.participantId + ")";
+    message += ": " + snapshot.answers.length + " " + ui.resumeAnswers;
+    var resume = el("button", { id: "resumeBtn", className: "btn btn-primary me-2", text: ui.resumeBtn });
+    var start = el("button", { id: "newSessionBtn", className: "btn btn-outline-secondary", text: ui.newSessionBtn });
+    area.appendChild(el("div", { className: "resume-prompt" }, [el("p", { text: message }), resume, start]));
+    hide($("#nextBtn"));
+    resume.addEventListener("click", function () {
+      if (generation !== sessionGeneration) return;
+      var session = loadProgress();
+      if (!session || session.testStartTime !== snapshot.testStartTime || session.participantId !== snapshot.participantId || JSON.stringify(session.selectedTestNames) !== JSON.stringify(snapshot.selectedTestNames)) {
+        resetState();
+        showSetupScreen(ui.dataCleared);
         return;
       }
-
-      empty(area);
-      removeClass($("#progress-container"), "hidden");
-      var nb = $("#nextBtn");
-      nb.textContent = ui.nextBtn;
-      removeClass(nb, "hidden");
+      resetState();
+      state.participantId = session.participantId;
+      state.currentTestIndex = session.currentTestIndex;
+      state.currentQuestionIndex = session.currentQuestionIndex;
+      state.answers = session.answers;
+      state.testStartTime = new Date(session.testStartTime);
+      state.tests = allTests.filter(function (test) { return session.selectedTestNames.indexOf(test.name) !== -1; });
+      state.totalQuestions = state.tests.reduce(function (sum, test) { return sum + test.questions.length; }, 0);
       state.testInProgress = true;
+      progressPersisted = true;
+      empty(area);
+      show($("#progress-container"));
+      var button = $("#nextBtn");
+      button.textContent = ui.nextBtn;
+      button.disabled = false;
+      show(button);
       loadTest(state.tests[state.currentTestIndex]);
     });
-
-    newBtn.addEventListener("click", function () {
+    start.addEventListener("click", function () {
+      if (generation !== sessionGeneration) return;
       clearProgress();
+      resetState();
       showSetupScreen();
     });
   }
-
-  /**
-   * Display a test's instruction text and load its first (or current) question.
-   * @param {Object} test - Test object from CONFIG.tests
-   */
   function loadTest(test) {
-    var ia = $("#instruction-area");
-    empty(ia);
-    if (test.instructions) {
-      ia.appendChild(el("div", { className: "instruction", text: test.instructions }));
-    }
+    var area = $("#instruction-area");
+    empty(area);
+    if (test.instructions) area.appendChild(el("div", { className: "instruction", text: test.instructions }));
     loadQuestion(test.questions[state.currentQuestionIndex]);
   }
-
-  /**
-   * Render a single question with radio-button options into #test-area.
-   * Records questionStartTime for response-time measurement.
-   * @param {Object} question - Question object with q, options, and scores arrays
-   */
   function loadQuestion(question) {
     state.questionStartTime = new Date();
     var area = $("#test-area");
     empty(area);
-
-    var container = el("div");
-    var qId = "q-text-" + state.currentTestIndex + "-" + state.currentQuestionIndex;
-    var qEl = el("p", { className: "question", id: qId, tabindex: "-1", text: question.q });
-    container.appendChild(qEl);
-
-    var radioGroup = el("div", { role: "radiogroup", "aria-labelledby": qId });
-    question.options.forEach(function (option, idx) {
-      var fc = el("div", { className: "form-check" });
-      var input = el("input", {
-        className: "form-check-input",
-        type: "radio",
-        name: "question" + state.currentTestIndex + "_" + state.currentQuestionIndex,
-        id: "option" + idx,
-        value: String(question.scores[idx]),
-      });
-      var label = el("label", { className: "form-check-label", "for": "option" + idx, text: option });
-      fc.appendChild(input);
-      fc.appendChild(label);
-      radioGroup.appendChild(fc);
+    var id = "q-text-" + state.currentTestIndex + "-" + state.currentQuestionIndex;
+    var prompt = el("p", { className: "question", id: id, tabindex: "-1", text: question.q });
+    var group = el("div", { role: "radiogroup", "aria-labelledby": id });
+    area.appendChild(prompt);
+    if (question.description) {
+      area.appendChild(el("label", { "for": "question-description", className: "form-label", text: ui.descriptionLabel }));
+      area.appendChild(el("textarea", { id: "question-description", className: "form-control mb-3", rows: "3" }));
+    }
+    question.options.forEach(function (option, index) {
+      group.appendChild(el("div", { className: "form-check" }, [
+        el("input", { className: "form-check-input", type: "radio", name: "question" + state.currentTestIndex + "_" + state.currentQuestionIndex, id: "option" + index, value: String(index) }),
+        el("label", { className: "form-check-label", "for": "option" + index, text: option }),
+      ]));
     });
-    container.appendChild(radioGroup);
-
-    area.appendChild(container);
+    area.appendChild(group);
+    area.appendChild(el("p", { className: "instrument-notice", text: C.testMetadata[state.tests[state.currentTestIndex].name].notice }));
     updateProgressBar();
-    qEl.focus(); // announce the new question to screen readers
+    prompt.focus();
   }
-
-  /**
-   * Capture the currently selected radio-button answer and push it to state.answers.
-   * Validates that a selection exists and that the score is in the question's scores array.
-   * @returns {boolean} true if an answer was recorded, false if no valid selection
-   */
   function recordAnswer() {
-    var name = "question" + state.currentTestIndex + "_" + state.currentQuestionIndex;
-    var selected = document.querySelector('input[name="' + name + '"]:checked');
-    if (!selected) return false;
-
-    var rawScore = parseInt(selected.value, 10);
-    if (isNaN(rawScore)) return false;
-
-    var currentTest = state.tests[state.currentTestIndex];
-    var currentQuestion = currentTest.questions[state.currentQuestionIndex];
-    if (currentQuestion.scores.indexOf(rawScore) === -1) return false;
-
-    var duration = (new Date() - state.questionStartTime) / 1000;
-    var label = selected.nextElementSibling;
-
+    var selected = $('#test-area input[type="radio"]:checked');
+    if (!selected || !/^\d+$/.test(selected.value)) return false;
+    var index = Number(selected.value);
+    var test = state.tests[state.currentTestIndex];
+    var question = test.questions[state.currentQuestionIndex];
+    if (!isInt(index) || index >= question.options.length) return false;
+    var now = new Date();
+    var description = $("#question-description");
     state.answers.push({
-      test: currentTest.name,
-      questionIndex: state.currentQuestionIndex + 1,
-      question: currentQuestion.q,
-      answer: label ? label.textContent.trim() : "",
-      score: rawScore,
-      time: duration,
-      questionStartTime: state.questionStartTime.toISOString(),
-      answerTime: new Date().toISOString(),
+      test: test.name, questionIndex: state.currentQuestionIndex + 1, optionIndex: index,
+      question: question.q, answer: question.options[index], score: question.scores[index],
+      description: description ? description.value : "",
+      time: (now - state.questionStartTime) / 1000,
+      questionStartTime: state.questionStartTime.toISOString(), answerTime: now.toISOString(),
     });
     return true;
   }
-
-  /** Update the Bootstrap progress bar width based on questions answered so far. */
   function updateProgressBar() {
-    var answered = state.tests.slice(0, state.currentTestIndex).reduce(function (acc, t) { return acc + t.questions.length; }, 0) + state.currentQuestionIndex;
-    var progress = state.totalQuestions > 0 ? (answered / state.totalQuestions) * 100 : 0;
+    var progress = state.totalQuestions ? state.answers.length / state.totalQuestions * 100 : 0;
     var bar = $(".progress-bar");
     bar.style.width = progress + "%";
     bar.setAttribute("aria-valuenow", String(progress));
   }
-
-  /**
-   * Build and display the results table with color-coded interpretation labels
-   * and a clinical disclaimer. Unhides #results-area.
-   * @param {Object<string, number|Object<string, number>>} summary - Output of calculateSummaryScores()
-   */
   function displayResults(summary) {
-    var totalTime = sessionMinutes(1);
     var area = $("#results-area");
     empty(area);
-
     var heading = el("h2", { tabindex: "-1", text: ui.resultsHeading });
     area.appendChild(heading);
-    if (state.participantId) {
-      area.appendChild(el("p", null, [el("strong", { text: ui.participantLabel2 }), " " + state.participantId]));
-    }
-    area.appendChild(el("p", null, [el("strong", { text: ui.durationLabel }), " " + totalTime + " " + ui.minutes]));
-
-    // Build table
+    if (state.participantId) area.appendChild(el("p", { className: "participant-id", text: ui.participantLabel2 + " " + state.participantId }));
+    area.appendChild(el("p", { text: ui.durationLabel + " " + sessionMinutes(1) + " " + ui.minutes }));
     var table = el("table", { className: "table table-bordered" });
     table.appendChild(el("caption", { className: "visually-hidden", text: ui.resultsTableCaption }));
-    var thead = el("thead");
-    var headRow = el("tr");
-    [ui.colScale, ui.colSubscale, ui.colScore, ui.colInterpretation].forEach(function (h) {
-      headRow.appendChild(el("th", { text: h }));
+    var head = el("tr");
+    [ui.colScale, ui.colSubscale, ui.colScore, ui.colRange, ui.colInterpretation].forEach(function (label) { head.appendChild(el("th", { scope: "col", text: label })); });
+    table.appendChild(el("thead", null, [head]));
+    var body = el("tbody");
+    summaryRows(summary).forEach(function (row) {
+      var cells = [row.test, row.label, row.score, row.range].map(function (value) { return el("td", { text: value }); });
+      var interpretation = el("td", { text: row.interpretation });
+      var color = row.test === "HADS" ? interpClass(row.interpretation) : "";
+      if (color) interpretation.classList.add(color);
+      cells.push(interpretation);
+      body.appendChild(el("tr", null, cells));
     });
-    thead.appendChild(headRow);
-    table.appendChild(thead);
-
-    var tbody = el("tbody");
-    Object.keys(summary).forEach(function (testName) {
-      var score = summary[testName];
-      if (typeof score === "object") {
-        Object.keys(score).forEach(function (sub) {
-          var val = score[sub];
-          var interp = getInterpretation(testName, sub, val);
-          var display = formatScoreValue(val);
-          var row = el("tr");
-          row.appendChild(el("td", { text: testName }));
-          row.appendChild(el("td", { text: sub }));
-          row.appendChild(el("td", { text: display }));
-          var interpTd = el("td", { text: interp });
-          var cls = interpClass(interp);
-          if (cls) addClass(interpTd, cls);
-          row.appendChild(interpTd);
-          tbody.appendChild(row);
-        });
-      } else {
-        var interp = getInterpretation(testName, null, score);
-        var row = el("tr");
-        row.appendChild(el("td", { text: testName }));
-        row.appendChild(el("td", { text: ui.totalLabel }));
-        row.appendChild(el("td", { text: String(score) }));
-        var interpTd = el("td", { text: interp });
-        var cls = interpClass(interp);
-        if (cls) addClass(interpTd, cls);
-        row.appendChild(interpTd);
-        tbody.appendChild(row);
-      }
-    });
-    table.appendChild(tbody);
-    area.appendChild(table);
-
-    // Disclaimer
-    var disc = el("div", { className: "disclaimer", text: ui.disclaimer });
-    area.appendChild(disc);
-
-    removeClass(area, "hidden");
-    heading.focus(); // announce results to screen readers
+    table.appendChild(body);
+    area.appendChild(el("div", { className: "table-responsive" }, [table]));
+    area.appendChild(el("div", { className: "disclaimer", text: ui.disclaimer }));
+    show(area);
+    heading.focus();
   }
 
-  // ── Export: CSV ────────────────────────────────────────────────────
-
-  /**
-   * Generate and trigger download of a UTF-8 CSV file containing individual
-   * answers and a summary scores section. Includes a BOM for Excel compatibility.
-   */
+  function requireCompletedSession() {
+    if (state.testInProgress || !(state.testStartTime instanceof Date) || !(state.testEndTime instanceof Date) || !Number.isFinite(state.testStartTime.getTime()) || !Number.isFinite(state.testEndTime.getTime()) || state.testEndTime < state.testStartTime || state.testEndTime.getTime() > Date.now()) throw new Error(ui.invalidResults);
+    var answers = completedAnswers(true);
+    answers.forEach(function (answer) {
+      if (Date.parse(answer.questionStartTime) < state.testStartTime.getTime() || Date.parse(answer.answerTime) > state.testEndTime.getTime()) throw new Error(ui.invalidResults);
+    });
+    return answers;
+  }
+  function buildCSV() {
+    var answers = requireCompletedSession();
+    var lines = ["\uFEFF" + ui.csvSessionTitle];
+    function row(values) { lines.push(values.map(csvEscape).join(",")); }
+    row([ui.csvParticipant, state.participantId || "N/A"]);
+    row([ui.csvLanguage, C.lang]);
+    row([ui.csvRevision, C.revision]);
+    row([ui.csvStarted, state.testStartTime.toISOString()]);
+    row([ui.csvCompleted, state.testEndTime.toISOString()]);
+    row([ui.csvGenerated, new Date().toISOString()]);
+    row([ui.csvDuration, sessionMinutes(2)]);
+    row([ui.csvTestsCompleted, state.tests.map(function (test) { return test.name; }).join("; ")]);
+    state.tests.forEach(function (test) {
+      var metadata = C.testMetadata[test.name];
+      row([ui.csvForm, test.name, metadata.form]);
+      row([ui.csvSource, test.name, metadata.source]);
+      row([ui.csvNotice, test.name, metadata.notice]);
+    });
+    row([ui.csvDisclaimer, ui.disclaimer]);
+    lines.push("", ui.csvSummaryTitle, ui.csvSummaryHeaders);
+    summaryRows(calculateSummaryScores()).forEach(function (summary) {
+      row([summary.test, summary.key, summary.label, summary.score, summary.range, summary.interpretation]);
+    });
+    lines.push("", ui.csvDetailTitle, ui.csvHeaders);
+    answers.forEach(function (answer) {
+      row([answer.test, answer.questionIndex, answer.optionIndex, answer.question, answer.answer, answer.description, answer.score, answer.time.toFixed(2), answer.questionStartTime, answer.answerTime]);
+    });
+    return lines.join("\r\n") + "\r\n";
+  }
   function generateCSV() {
     try {
-      var csv = "\uFEFF";
-      var totalTime = sessionMinutes(2);
-      var now = new Date();
-      var date = now.getFullYear() + "-" + ("0" + (now.getMonth() + 1)).slice(-2) + "-" + ("0" + now.getDate()).slice(-2);
-
-      // ── Section 1: Session Info ──
-      csv += ui.csvSessionTitle + "\n";
-      csv += ui.csvParticipant + "," + csvEscape(state.participantId || "N/A") + "\n";
-      csv += ui.csvDate + "," + csvEscape(date) + "\n";
-      csv += ui.csvDuration + "," + csvEscape(totalTime) + "\n";
-      csv += ui.csvTestsCompleted + "," + csvEscape(state.tests.map(function (t) { return t.name; }).join("; ")) + "\n";
-
-      // ── Section 2: Summary Scores ──
-      csv += "\n" + ui.csvSummaryTitle + "\n";
-      csv += ui.csvSummaryHeaders + "\n";
-      var summary = calculateSummaryScores();
-      Object.keys(summary).forEach(function (testName) {
-        var score = summary[testName];
-        if (typeof score === "object") {
-          Object.keys(score).forEach(function (sub) {
-            var val = score[sub];
-            var display = formatScoreValue(val);
-            var interp = getInterpretation(testName, sub, val);
-            csv += [csvEscape(testName), csvEscape(sub), csvEscape(display), csvEscape(interp)].join(",") + "\n";
-          });
-        } else {
-          var interp = getInterpretation(testName, null, score);
-          csv += [csvEscape(testName), csvEscape(ui.totalLabel), csvEscape(score), csvEscape(interp)].join(",") + "\n";
-        }
-      });
-
-      // ── Section 3: Individual Responses ──
-      csv += "\n" + ui.csvDetailTitle + "\n";
-      csv += ui.csvHeaders + "\n";
-      state.answers.forEach(function (a) {
-        csv += [
-          csvEscape(a.test),
-          csvEscape(a.question),
-          csvEscape(a.answer),
-          csvEscape(a.score),
-          csvEscape(a.time.toFixed(2)),
-          csvEscape(a.questionStartTime),
-          csvEscape(a.answerTime),
-        ].join(",") + "\n";
-      });
-
-      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      var link = document.createElement("a");
+      var blob = new Blob([buildCSV()], { type: "text/csv;charset=utf-8;" });
+      var link = el("a", { download: C.export.csvFilename });
       var url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", C.export.csvFilename);
+      link.href = url;
       link.style.visibility = "hidden";
       document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      try { link.click(); } finally { link.remove(); URL.revokeObjectURL(url); }
       state.resultsExported = true;
+      return true;
     } catch (error) {
       console.error("CSV generation failed:", error);
       alert(ui.alertCsvFail);
+      return false;
     }
   }
 
-  // ── Export: PDF ────────────────────────────────────────────────────
-
-  /**
-   * Generate and trigger download of a PDF report using jsPDF.
-   * Contains summary scores with interpretations followed by all individual
-   * responses. Falls back to CSV export if jsPDF is unavailable.
-   */
+  /* Built-in PDF fonts use WinAnsi. Unsupported text stays intact in the CSV fallback. */
+  function pdfTextSupported(text) {
+    return !/[^\t\n\r\u0020-\u007E\u00A0-\u00FFŒœŠšŸŽžƒˆ˜\u2013\u2014‘’‚“”„†‡•…‰‹›€™]/u.test(String(text));
+  }
+  function checkPDFText(answers) {
+    var text = [state.participantId];
+    Object.keys(ui).forEach(function (key) { text.push(ui[key]); });
+    Object.keys(C.subscaleLabels).forEach(function (key) { text.push(C.subscaleLabels[key]); });
+    state.tests.forEach(function (test) {
+      var metadata = C.testMetadata[test.name];
+      text.push(test.name, metadata.form, metadata.source, metadata.notice);
+    });
+    answers.forEach(function (answer) { text.push(answer.question, answer.answer, answer.description); });
+    if (!text.every(pdfTextSupported)) {
+      var error = new Error(ui.alertPdfEncoding);
+      error.code = "PDF_ENCODING";
+      throw error;
+    }
+  }
+  /* Wrap full text and reserve measured space for instrument notices on every page. */
+  function buildPDF() {
+    var answers = requireCompletedSession();
+    checkPDFText(answers);
+    var doc = new window.jspdf.jsPDF();
+    var margin = 10;
+    var width = doc.internal.pageSize.getWidth() - 2 * margin;
+    var height = doc.internal.pageSize.getHeight();
+    var notices = state.tests.map(function (test) { return C.testMetadata[test.name].notice; }).filter(function (notice, index, list) { return list.indexOf(notice) === index; });
+    doc.setFontSize(8);
+    var footerLines = doc.splitTextToSize(ui.pdfNotice + "\n" + notices.join("\n"), width);
+    var footerTop = height - margin - footerLines.length * 3.8;
+    var bottom = footerTop - 5;
+    var y = margin;
+    if (bottom < 60) throw new Error("Instrument notices do not fit on the PDF page");
+    function footer() {
+      doc.setFontSize(8);
+      footerLines.forEach(function (line, index) { doc.text(line, margin, footerTop + index * 3.8); });
+    }
+    function write(text, size, gap) {
+      size = size || 10;
+      doc.setFontSize(size);
+      var lines = doc.splitTextToSize(String(text), width);
+      var lineHeight = size * 0.352778 * 1.3;
+      lines.forEach(function (line) {
+        if (y + lineHeight > bottom) { footer(); doc.addPage(); y = margin; doc.setFontSize(size); }
+        doc.text(line, margin, y + lineHeight);
+        y += lineHeight;
+      });
+      y += gap === undefined ? 2 : gap;
+    }
+    write(ui.pdfTitle, 16, 4);
+    write(ui.pdfGenerated + " " + new Date().toISOString());
+    if (state.participantId) write(ui.pdfParticipant + " " + state.participantId);
+    write(ui.pdfLanguage + " " + C.lang + " | " + ui.pdfRevision + " " + C.revision);
+    write(ui.pdfStarted + " " + state.testStartTime.toISOString());
+    write(ui.pdfCompleted + " " + state.testEndTime.toISOString());
+    write(ui.pdfDuration + " " + sessionMinutes(1) + " " + ui.minutes);
+    state.tests.forEach(function (test) {
+      var metadata = C.testMetadata[test.name];
+      write(test.name + " | " + ui.pdfForm + " " + metadata.form);
+      write(ui.pdfSource + " " + metadata.source, 9);
+    });
+    write(ui.pdfDisclaimer + " " + ui.disclaimer, 9, 5);
+    write(ui.pdfSummary, 12, 4);
+    summaryRows(calculateSummaryScores()).forEach(function (row) {
+      write(row.test + " / " + row.label + ": " + row.score + " | " + ui.colRange + " " + row.range + (row.interpretation ? " | " + row.interpretation : ""));
+    });
+    write(ui.pdfDetailed, 12, 4);
+    answers.forEach(function (answer) {
+      write(ui.pdfTest + " " + answer.test + " | " + ui.pdfQuestion + " " + answer.questionIndex, 10, 1);
+      write(answer.question, 9, 1);
+      write(ui.pdfAnswer + " " + answer.answer, 9, 1);
+      write(ui.csvHeaders.split(",")[2] + ": " + answer.optionIndex, 9, 1);
+      if (answer.description) write(ui.pdfDescription + " " + answer.description, 9, 1);
+      write(ui.pdfScore + " " + answer.score + " | " + ui.pdfTime + " " + answer.time.toFixed(1) + "s", 9, 4);
+    });
+    footer();
+    return doc;
+  }
   function generatePDF() {
+    if (!window.jspdf) {
+      if (generateCSV()) alert(ui.alertPdfFail);
+      return;
+    }
     try {
-      if (!window.jspdf) {
-        generateCSV();
-        alert(ui.alertPdfFail);
-        return;
-      }
-      var jsPDF = window.jspdf.jsPDF;
-      var doc = new jsPDF();
-      var yPos = 10;
-
-      doc.setFontSize(16);
-      doc.text(ui.pdfTitle, 10, yPos);
-      yPos += 10;
-      doc.setFontSize(10);
-      doc.text(ui.pdfGenerated + " " + new Date().toISOString(), 10, yPos);
-      yPos += 6;
-      if (state.participantId) {
-        doc.text(ui.pdfParticipant + " " + state.participantId, 10, yPos);
-        yPos += 6;
-      }
-      doc.text(ui.pdfDuration + " " + sessionMinutes(1) + " " + ui.minutes, 10, yPos);
-      yPos += 10;
-
-      doc.setFontSize(12);
-      var summary = calculateSummaryScores();
-      doc.text(ui.pdfSummary, 10, yPos);
-      yPos += 8;
-
-      doc.setFontSize(10);
-      Object.keys(summary).forEach(function (testName) {
-        var score = summary[testName];
-        if (yPos > 270) { doc.addPage(); yPos = 10; }
-        if (typeof score === "object") {
-          doc.text(testName + " " + ui.pdfScore, 10, yPos);
-          yPos += 6;
-          Object.keys(score).forEach(function (sub) {
-            var val = score[sub];
-            var interp = getInterpretation(testName, sub, val);
-            var label = interp ? " (" + interp + ")" : "";
-            doc.text("  - " + sub + ": " + formatScoreValue(val) + label, 14, yPos);
-            yPos += 6;
-          });
-        } else {
-          var interp = getInterpretation(testName, null, score);
-          var label = interp ? " (" + interp + ")" : "";
-          doc.text(testName + " " + ui.pdfScore + " " + formatScoreValue(score) + label, 10, yPos);
-          yPos += 6;
-        }
-      });
-
-      yPos += 10;
-      doc.setFontSize(12);
-      doc.text(ui.pdfDetailed, 10, yPos);
-      yPos += 10;
-
-      doc.setFontSize(9);
-      state.answers.forEach(function (a) {
-        if (yPos > 260) { doc.addPage(); yPos = 10; }
-        var maxLen = 85;
-        var qText = a.question.length > maxLen ? a.question.substring(0, maxLen) + "..." : a.question;
-        doc.text("Test: " + a.test, 10, yPos);
-        doc.text("Q: " + qText, 10, yPos + 5);
-        doc.text(ui.pdfAnswer + " " + a.answer + " | " + ui.pdfScore + " " + a.score + " | " + ui.pdfTime + " " + a.time.toFixed(1) + "s", 10, yPos + 10);
-        yPos += 18;
-      });
-
-      doc.save(C.export.pdfFilename);
+      buildPDF().save(C.export.pdfFilename);
       state.resultsExported = true;
     } catch (error) {
+      if (error.code === "PDF_ENCODING") {
+        if (generateCSV()) alert(ui.alertPdfEncoding);
+        return;
+      }
       console.error("PDF generation failed:", error);
-      alert(ui.alertPdfError + " " + error.message);
+      alert(ui.alertPdfError);
     }
   }
 
-  // ── Main button handler ───────────────────────────────────────────
-
-  /**
-   * Main button click/Enter handler. Behaviour depends on state.testInProgress:
-   *  - false: read selected tests and participant ID, begin the first test
-   *  - true:  record the current answer, advance to the next question/test,
-   *           or finish and display results if all tests are complete
-   *
-   * Includes a 300 ms debounce to prevent double-clicks.
-   */
   function handleNext() {
-    var btn = $("#nextBtn");
-    if (btn.disabled) return;
-    btn.disabled = true;
-    setTimeout(function () { btn.disabled = false; }, 300);
-
+    var button = $("#nextBtn");
+    if (button.disabled) return;
+    if (state.testInProgress && !storedProgressAvailable()) return;
+    button.disabled = true;
+    setTimeout(function () { button.disabled = false; }, 300);
     if (!state.testInProgress) {
-      // Start
-      var pidInput = $("#participantIdInput");
-      state.participantId = pidInput ? (pidInput.value || "").trim() : "";
-      var checked = $$(".test-checkbox:checked");
-      var selected = [];
-      checked.forEach(function (cb) { selected.push(parseInt(cb.value, 10)); });
-      if (selected.length === 0) {
-        alert(ui.alertSelectTest);
-        btn.disabled = false;
-        return;
-      }
-      state.tests = selected.map(function (i) { return allTests[i]; });
-      state.totalQuestions = state.tests.reduce(function (acc, t) { return acc + t.questions.length; }, 0);
+      var input = $("#participantIdInput");
+      if (!input) { button.disabled = false; return; }
+      var participant = input.value.trim();
+      var selected = Array.prototype.map.call($$(".test-checkbox:checked"), function (checkbox) { return Number(checkbox.value); });
+      if (!selected.length || selected.some(function (index) { return !isInt(index) || !allTests[index]; })) { alert(ui.alertSelectTest); button.disabled = false; return; }
+      resetState();
+      state.participantId = participant;
+      state.tests = selected.map(function (index) { return allTests[index]; });
+      state.totalQuestions = state.tests.reduce(function (sum, test) { return sum + test.questions.length; }, 0);
       state.testStartTime = new Date();
       state.testInProgress = true;
-      state.currentTestIndex = 0;
-      state.currentQuestionIndex = 0;
       empty($("#setup-area"));
-      removeClass($("#progress-container"), "hidden");
-      loadTest(state.tests[state.currentTestIndex]);
-      btn.textContent = ui.nextBtn;
+      show($("#progress-container"));
+      loadTest(state.tests[0]);
+      button.textContent = ui.nextBtn;
       saveProgress();
-    } else {
-      // Next
-      if (!recordAnswer()) {
-        alert(ui.alertAnswer);
-        btn.disabled = false;
-        return;
-      }
-      if (state.currentQuestionIndex < state.tests[state.currentTestIndex].questions.length - 1) {
-        state.currentQuestionIndex++;
-        loadQuestion(state.tests[state.currentTestIndex].questions[state.currentQuestionIndex]);
-      } else if (state.currentTestIndex < state.tests.length - 1) {
-        state.currentTestIndex++;
-        state.currentQuestionIndex = 0;
-        loadTest(state.tests[state.currentTestIndex]);
-      } else {
-        // Done
-        state.testInProgress = false;
-        state.testEndTime = new Date();
-        clearProgress();
-        var bar = $(".progress-bar");
-        bar.style.width = "100%";
-        bar.setAttribute("aria-valuenow", "100");
-        addClass(btn, "hidden");
-        empty($("#instruction-area"));
-        empty($("#test-area"));
-        var summary = calculateSummaryScores();
-        displayResults(summary);
-        removeClass($("#download-buttons"), "hidden");
-        return;
-      }
-      saveProgress();
+      return;
     }
-  }
-
-  // ── Init ──────────────────────────────────────────────────────────
-
-  /**
-   * Initialize the application on DOMContentLoaded.
-   * Sets page text from CONFIG.ui, checks for a saved session, renders the
-   * appropriate start screen, and attaches event listeners for the main button,
-   * download button, keyboard shortcuts (Enter, 1-9), and beforeunload warning.
-   */
-  function init() {
-    // A structurally broken config must not administer or score anything.
-    var configProblems = validateConfig(C);
-    if (configProblems.length) {
-      console.error("CONFIG validation problems:", configProblems);
-      var setupArea = $("#setup-area");
-      if (setupArea) {
-        empty(setupArea);
-        setupArea.appendChild(el("div", { className: "disclaimer", text: ui.configError + " " + configProblems.join("; ") }));
+    if (!recordAnswer()) { alert(ui.alertAnswer); button.disabled = false; return; }
+    if (state.currentQuestionIndex < state.tests[state.currentTestIndex].questions.length - 1) {
+      state.currentQuestionIndex++;
+      loadQuestion(state.tests[state.currentTestIndex].questions[state.currentQuestionIndex]);
+    } else if (state.currentTestIndex < state.tests.length - 1) {
+      state.currentTestIndex++;
+      state.currentQuestionIndex = 0;
+      loadTest(state.tests[state.currentTestIndex]);
+    } else {
+      state.testInProgress = false;
+      state.testEndTime = new Date();
+      clearProgress();
+      updateProgressBar();
+      hide(button);
+      empty($("#instruction-area"));
+      empty($("#test-area"));
+      try {
+        displayResults(calculateSummaryScores());
+        show($("#download-buttons"));
+      } catch (error) {
+        resetState();
+        showSetupScreen(ui.invalidResults);
       }
       return;
     }
-
-    // Set page text from config
-    document.title = ui.pageTitle;
-    var h1 = $("h1");
-    if (h1) h1.textContent = ui.heading;
-    var csvBtn = $("#downloadCsv");
-    if (csvBtn) csvBtn.textContent = ui.downloadCsvBtn;
-    var pdfBtn = $("#downloadPdf");
-    if (pdfBtn) pdfBtn.textContent = ui.downloadPdfBtn;
-
-    var saved = loadProgress();
-    if (saved) {
-      showResumeScreen(saved);
-    } else {
-      showSetupScreen();
+    saveProgress();
+  }
+  function init() {
+    var problems = validateConfig(C);
+    if (problems.length) {
+      console.error("CONFIG validation problems:", problems);
+      empty($("#setup-area"));
+      $("#setup-area").appendChild(el("div", { role: "alert", className: "disclaimer", text: (ui.configError || "Configuration error:") + " " + problems.join("; ") }));
+      hide($("#nextBtn"));
+      return;
     }
-
-    // Keyboard navigation
-    document.addEventListener("keydown", function (e) {
-      if (!state.testInProgress || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "Enter") {
-        // Let a focused button keep its native Enter activation
-        if (e.target && e.target.tagName === "BUTTON") return;
-        e.preventDefault();
+    document.title = ui.pageTitle;
+    if ($("h1")) $("h1").textContent = ui.heading;
+    $("#downloadCsv").textContent = ui.downloadCsvBtn;
+    $("#downloadPdf").textContent = ui.downloadPdfBtn;
+    var saved = loadProgress();
+    if (saved) showResumeScreen(saved);
+    else showSetupScreen(invalidSavedSession ? ui.invalidSession : "");
+    document.addEventListener("keydown", function (event) {
+      if (!state.testInProgress || event.metaKey || event.ctrlKey || event.altKey) return;
+      var target = event.target;
+      if (target && (target.isContentEditable || target.tagName === "TEXTAREA" || (target.tagName === "INPUT" && target.type !== "radio" && target.type !== "checkbox"))) return;
+      if (event.key === "Enter") {
+        if (target && target.tagName === "BUTTON") return;
+        event.preventDefault();
         handleNext();
-      } else if (e.key >= "1" && e.key <= "9") {
-        var idx = parseInt(e.key, 10) - 1;
+      } else if (/^[1-9]$/.test(event.key)) {
         var radios = $$('#test-area input[type="radio"]');
-        if (idx < radios.length) {
-          // focus + click (not bare .checked) so screen readers announce
-          // the selection and change listeners fire
-          radios[idx].focus();
-          radios[idx].click();
-        }
+        var index = Number(event.key) - 1;
+        if (index < radios.length) { radios[index].focus(); radios[index].click(); }
       }
     });
-
-    // Main button
     $("#nextBtn").addEventListener("click", handleNext);
-
-    // Download buttons with debounce
     var downloadingCsv = false;
     var downloadingPdf = false;
     $("#downloadCsv").addEventListener("click", function () {
@@ -880,44 +799,34 @@
       generatePDF();
       setTimeout(function () { downloadingPdf = false; }, 1000);
     });
-
-    // Clear saved data on demand (privacy control)
-    var clearBtn = $("#clearDataBtn");
-    if (clearBtn) {
-      clearBtn.textContent = ui.clearDataBtn;
-      clearBtn.addEventListener("click", function () {
-        clearProgress();
-        clearBtn.textContent = ui.dataCleared;
-        clearBtn.disabled = true;
-        setTimeout(function () { clearBtn.disabled = false; clearBtn.textContent = ui.clearDataBtn; }, 2000);
-      });
-    }
-
-    // Warn on unload: mid-test, or on the results screen before any export
-    // (completion clears localStorage, so unexported results are unrecoverable)
-    window.addEventListener("beforeunload", function (e) {
-      if (state.testInProgress || (state.testEndTime && !state.resultsExported)) {
-        e.preventDefault();
-        e.returnValue = "";
+    var clear = $("#clearDataBtn");
+    if (clear) { clear.textContent = ui.clearDataBtn; clear.addEventListener("click", clearAllData); }
+    window.addEventListener("storage", function (event) {
+      if (event.storageArea && event.storageArea !== localStorage) return;
+      if (event.key === C.storageKey && event.newValue === null && (state.testInProgress || $("#resumeBtn") || state.testEndTime)) {
+        resetState();
+        showSetupScreen(ui.dataCleared);
       }
     });
+    window.addEventListener("beforeunload", function (event) {
+      if (state.testInProgress || (state.testEndTime && !state.resultsExported)) { event.preventDefault(); event.returnValue = ""; }
+    });
   }
-
-  // ── Test hook ─────────────────────────────────────────────────────
   if (window.__TEST__) {
-    window.__TEST__.calculateSummaryScores = calculateSummaryScores;
-    window.__TEST__.getInterpretation = getInterpretation;
-    window.__TEST__.interpClass = interpClass;
-    window.__TEST__.csvEscape = csvEscape;
-    window.__TEST__.formatScoreValue = formatScoreValue;
-    window.__TEST__.validateConfig = validateConfig;
-    window.__TEST__.state = state;
+    var hooks = {
+      calculateSummaryScores: calculateSummaryScores, getInterpretation: getInterpretation,
+      interpClass: interpClass, csvEscape: csvEscape, formatScoreValue: formatScoreValue,
+      validateConfig: validateConfig, validateSession: validateSession,
+      configSignature: configSignature, loadProgress: loadProgress, saveProgress: saveProgress,
+      showResumeScreen: showResumeScreen, resetState: resetState, clearAllData: clearAllData,
+      showSetupScreen: showSetupScreen, loadTest: loadTest, recordAnswer: recordAnswer,
+      displayResults: displayResults, scoreRange: scoreRange, summaryRows: summaryRows,
+      buildCSV: buildCSV, buildPDF: buildPDF, generateCSV: generateCSV, generatePDF: generatePDF,
+      pdfTextSupported: pdfTextSupported,
+      state: state,
+    };
+    Object.keys(hooks).forEach(function (key) { window.__TEST__[key] = hooks[key]; });
   }
-
-  // Boot
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
 })();
