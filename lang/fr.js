@@ -1,4 +1,3 @@
-// French UI, original questionnaire content, and scoring metadata.
 // STAI-T reverse scoring per Gauthier & Bouchard (1993): 1,3,6,7,10,13,14,16,19
 // FQ ordering per Cottraux French validation: GlobalPhobiaRating at Q24, AnxietyDepression at Q18-22
 window.CONFIG = {

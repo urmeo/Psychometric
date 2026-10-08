@@ -1,4 +1,3 @@
-/* Local questionnaire scoring, session validation and offline exports. */
 (function () {
   "use strict";
 
@@ -70,7 +69,6 @@
     state.tests = [];
   }
 
-  /* Exact content signature for save compatibility, not encryption or authentication. */
   function configSignature() {
     return JSON.stringify({
       lang: C.lang,
@@ -82,7 +80,6 @@
     });
   }
 
-  /* Return canonical response text and keyed score from its option identity. */
   function canonicalAnswer(answer, test, questionIndex, checkTimes) {
     if (!isObject(answer) || answer.test !== test.name || answer.questionIndex !== questionIndex) return null;
     var question = test.questions[questionIndex - 1];
@@ -109,7 +106,6 @@
     };
   }
 
-  /* Validate a saved answered prefix before assigning any live session state. */
   function validateSession(saved) {
     if (!isObject(saved) || saved.version !== SESSION_VERSION || saved.lang !== C.lang || saved.revision !== C.revision || saved.configSignature !== configSignature()) return null;
     if (typeof saved.participantId !== "string" || !validDate(saved.testStartTime) || !Array.isArray(saved.answers) || !Array.isArray(saved.selectedTestNames) || !saved.selectedTestNames.length) return null;
@@ -150,7 +146,6 @@
     };
   }
 
-  /* Check before advancing or saving so a delayed storage event cannot revive a clear. */
   function storedProgressAvailable() {
     if (!progressPersisted) return true;
     var raw;
@@ -182,10 +177,10 @@
         selectedTestNames: state.tests.map(function (test) { return test.name; }),
       }));
       progressPersisted = true;
-    } catch (error) { /* A disabled/full store does not prevent answering. */ }
+    } catch (error) { }
   }
   function clearProgress() {
-    try { localStorage.removeItem(C.storageKey); } catch (error) { /* Storage may be disabled. */ }
+    try { localStorage.removeItem(C.storageKey); } catch (error) { }
   }
   function loadProgress() {
     invalidSavedSession = false;
@@ -194,20 +189,19 @@
       if (raw === null) return null;
       var saved = validateSession(JSON.parse(raw));
       if (saved) return saved;
-    } catch (error) { /* Malformed or inaccessible storage cannot resume. */ }
+    } catch (error) { }
     invalidSavedSession = true;
     clearProgress();
     return null;
   }
   function clearAllData() {
     ["psychometric_progress_en", "psychometric_progress_fr", C.storageKey].forEach(function (key) {
-      try { localStorage.removeItem(key); } catch (error) { /* Storage may be disabled. */ }
+      try { localStorage.removeItem(key); } catch (error) { }
     });
     resetState();
     showSetupScreen(ui.dataCleared);
   }
 
-  /* Complete, unique option identities are required before a score exists. */
   function completedAnswers(checkTimes) {
     if (!Array.isArray(state.tests) || !state.tests.length || !Array.isArray(state.answers)) throw new Error(ui.invalidResults);
     var tests = {};
@@ -605,7 +599,6 @@
     }
   }
 
-  /* Built-in PDF fonts use WinAnsi. Unsupported text stays intact in the CSV fallback. */
   function pdfTextSupported(text) {
     return !/[^\t\n\r\u0020-\u007E\u00A0-\u00FFŒœŠšŸŽžƒˆ˜\u2013\u2014‘’‚“”„†‡•…‰‹›€™]/u.test(String(text));
   }
@@ -624,7 +617,6 @@
       throw error;
     }
   }
-  /* Wrap full text and reserve measured space for instrument notices on every page. */
   function buildPDF() {
     var answers = requireCompletedSession();
     checkPDFText(answers);

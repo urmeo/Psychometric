@@ -1,4 +1,3 @@
-/* Session, DOM and real jsPDF regressions run by the existing browser runner. */
 async function browserRegressions(C, T, state, mockAnswers, assert, assertThrows, clone) {
   var originalKey = C.storageKey;
   C.storageKey += "-tests";

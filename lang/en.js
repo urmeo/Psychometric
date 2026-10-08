@@ -1,4 +1,3 @@
-// English UI, original questionnaire content, and scoring metadata.
 window.CONFIG = {
   lang: "en",
   revision: "2026-10-06",
