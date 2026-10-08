@@ -803,7 +803,7 @@
     if (clear) { clear.textContent = ui.clearDataBtn; clear.addEventListener("click", clearAllData); }
     window.addEventListener("storage", function (event) {
       if (event.storageArea && event.storageArea !== localStorage) return;
-      if (event.key === C.storageKey && event.newValue === null && (state.testInProgress || $("#resumeBtn") || state.testEndTime)) {
+      if ((event.key === C.storageKey || event.key === null) && event.newValue === null && (state.testInProgress || $("#resumeBtn") || state.testEndTime)) {
         resetState();
         showSetupScreen(ui.dataCleared);
       }

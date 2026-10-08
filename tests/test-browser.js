@@ -209,6 +209,31 @@ async function browserRegressions(C, T, state, mockAnswers, assert, assertThrows
   document.getElementById("nextBtn").click();
   assert(state.answers.length === 0 && localStorage.getItem(C.storageKey) === null && !!document.getElementById("participantIdInput"), "Next before storage-event delivery cannot restore cleared answers");
 
+
+  localStorage.setItem(C.storageKey, JSON.stringify(valid));
+  T.showResumeScreen(valid);
+  var clearedResume = document.getElementById("resumeBtn");
+  localStorage.clear();
+  window.dispatchEvent(new StorageEvent("storage", { key: null, newValue: null, storageArea: localStorage }));
+  assert(!document.getElementById("resumeBtn"), "external storage clear removes Resume prompt immediately");
+  clearedResume.click();
+  assert(state.answers.length === 0 && !!document.getElementById("participantIdInput"), "external storage clear invalidates detached Resume closure");
+
+  localStorage.setItem(C.storageKey, JSON.stringify(valid));
+  T.showResumeScreen(valid);
+  document.getElementById("resumeBtn").click();
+  window.dispatchEvent(new StorageEvent("storage", { key: null, newValue: null, storageArea: sessionStorage }));
+  assert(state.testInProgress && state.answers.length === 2, "sessionStorage clear does not reset local progress");
+  localStorage.clear();
+  window.dispatchEvent(new StorageEvent("storage", { key: null, newValue: null, storageArea: localStorage }));
+  assert(state.answers.length === 0 && !state.testInProgress && !!document.getElementById("participantIdInput"), "external storage clear ends active session immediately");
+
+  T.prepareDownloadFixture();
+  localStorage.clear();
+  window.dispatchEvent(new StorageEvent("storage", { key: null, newValue: null, storageArea: localStorage }));
+  assert(state.answers.length === 0 && state.testEndTime === null, "external storage clear invalidates completed results");
+  assert(document.getElementById("results-area").classList.contains("hidden") && document.getElementById("download-buttons").classList.contains("hidden"), "external storage clear hides completed results and exports");
+
   var stale = clone(valid);
   stale.currentTestIndex = 99;
   T.showResumeScreen(stale);
