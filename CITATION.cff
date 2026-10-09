@@ -3,8 +3,7 @@ message: "If you use this software, please cite it as below."
 type: software
 title: "Psychometric: bilingual questionnaire scoring and exports"
 authors:
-  - family-names: Bose
-    given-names: Urme
+  - given-names: Urme
 repository-code: "https://github.com/urmeo/Psychometric"
 url: "https://github.com/urmeo/Psychometric"
 license: MIT
